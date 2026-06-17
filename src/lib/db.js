@@ -1,13 +1,10 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 
 function createPrismaClient() {
-  // Parse database URL from environment, fallback to dev.db for local development
-  const dbUrl = process.env.DATABASE_URL
-    ? process.env.DATABASE_URL.replace('file:', '').replace('./', '')
-    : 'dev.db';
-
-  const adapter = new PrismaBetterSqlite3({ url: dbUrl });
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 }
 
