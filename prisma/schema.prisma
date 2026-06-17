@@ -1,0 +1,83 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            Int            @id @default(autoincrement())
+  username      String         @unique
+  passwordHash  String
+  email         String         @unique
+  role          String         // "admin" | "user" | "viewer"
+  createdAt     DateTime       @default(now())
+  lastLogin     DateTime?
+  budgetPeriods BudgetPeriod[]
+  exportLogs    ExportLog[]
+  auditLogs     AuditLog[]
+}
+
+model CostCenter {
+  id           Int           @id @default(autoincrement())
+  code         String        @unique
+  name         String
+  description  String?
+  isActive     Boolean       @default(true)
+  updatedAt    DateTime      @default(now()) @updatedAt
+  transactions Transaction[]
+}
+
+model BudgetPeriod {
+  id           Int           @id @default(autoincrement())
+  userId       Int
+  user         User          @relation(fields: [userId], references: [id])
+  name         String?       // Custom sheet name, defaults to "DD-YYYY, Month" format
+  year         Int
+  month        Int
+  status       String        @default("draft") // "draft" | "finalized"
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+  exportLogs   ExportLog[]
+}
+
+model Transaction {
+  id                  Int          @id @default(autoincrement())
+  periodId            Int
+  period              BudgetPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  accountCode         String?      // รหัสบัญชี (e.g. "53010060")
+  costCenterId        Int?
+  costCenter          CostCenter?  @relation(fields: [costCenterId], references: [id])
+  rowOrder            Int
+  description         String
+  amountBeforeTax     Float        @default(0.0)
+  taxAmount           Float        @default(0.0)
+  totalAmount         Float        @default(0.0)
+  transactionType     String       @default("expense") // "income" | "expense"
+  includedInBudgetCut Boolean      @default(true)  // Checkbox for budget cut calculation
+  notes               String?      // เหตุผล / Reason column
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+}
+
+model ExportLog {
+  id         Int          @id @default(autoincrement())
+  periodId   Int
+  period     BudgetPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  userId     Int
+  user       User         @relation(fields: [userId], references: [id])
+  exportType String       // "excel"
+  fileName   String
+  exportedAt DateTime     @default(now())
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String
+  description String
+  timestamp   DateTime @default(now())
+}
