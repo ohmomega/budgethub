@@ -5,12 +5,14 @@ import BudgetGrid from './components/BudgetGrid';
 import Dashboard from './components/Dashboard';
 import BudgetSheetsList from './components/BudgetSheetsList';
 import CostCentersList from './components/CostCentersList';
+import DepartmentsList from './components/DepartmentsList';
 import ManageUsers from './components/ManageUsers';
 import {
   LogOut,
   LayoutDashboard,
   FileSpreadsheet,
   Layers,
+  Building2,
   Users,
   User,
   Globe,
@@ -22,21 +24,25 @@ const dict = {
     dashboard: 'แผงควบคุม',
     budgetSheets: 'แผ่นงบประมาณ',
     costCenters: 'ศูนย์ต้นทุน',
+    departments: 'จัดการแผนก',
     manageUsers: 'จัดการผู้ใช้งาน',
     language: 'ภาษา',
     theme: 'ธีมสี',
     logout: 'ออกจากระบบ',
     checking: 'กำลังตรวจสอบสิทธิ์การใช้งาน...',
+    eduOnly: 'เพื่อการศึกษาเท่านั้น • ข้อมูลเป็นเพียงตัวอย่าง',
   },
   EN: {
     dashboard: 'Dashboard',
     budgetSheets: 'Budget Sheets',
     costCenters: 'Cost Centers',
+    departments: 'Departments',
     manageUsers: 'Manage Users',
     language: 'Language',
     theme: 'Theme Color',
     logout: 'Log Out',
     checking: 'Checking credentials...',
+    eduOnly: 'For educational purposes only • Sample data',
   }
 };
 
@@ -189,6 +195,17 @@ export default function App() {
               <span>{t.costCenters}</span>
             </button>
 
+            {/* Departments */}
+            <button
+              onClick={() => { setCurrentTab('departments'); setActiveSheetPeriod(null); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition cursor-pointer ${currentTab === 'departments'
+                ? 'bg-[var(--color-primary-bg-light)] text-[var(--color-primary)]'
+                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-50'
+                }`}
+            >
+              <Building2 className="h-5 w-5" />
+              <span>{t.departments}</span>
+            </button>
 
           </nav>
         </div>
@@ -294,6 +311,11 @@ export default function App() {
             {/* Log Out button hidden in single-user mode */}
           </div>
 
+          {/* Educational-use disclaimer */}
+          <p className="text-[9px] leading-snug text-slate-400 font-semibold text-center pt-1 border-t border-slate-100">
+            {t.eduOnly}
+          </p>
+
         </div>
       </aside>
 
@@ -316,6 +338,9 @@ export default function App() {
         )}
         {currentTab === 'costcenters' && (
           <CostCentersList user={user} lang={lang} />
+        )}
+        {currentTab === 'departments' && (
+          <DepartmentsList user={user} lang={lang} />
         )}
 
       </main>

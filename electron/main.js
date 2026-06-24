@@ -44,6 +44,9 @@ async function bootstrap() {
 
   const { distDir, excelPath } = getPaths();
 
+  // Let the backend (in-app "Load sample data") find the bundled Example file.
+  process.env.BUDGETHUB_EXAMPLE_PATH = excelPath;
+
   // First-run: create and seed the database.
   if (!fs.existsSync(dbPath)) {
     try {

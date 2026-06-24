@@ -13,13 +13,23 @@ const ExcelJS = require('exceljs');
 
 const uuid = () => crypto.randomUUID();
 
+// The sample/educational dataset (departments + editor accounts + the April
+// 2026 demo period imported from Example/test.xlsx) is only created when
+// `withDemo` is true. A normal install (Electron first run) seeds just the
+// schema and the single admin account, so every new user starts with a clean,
+// empty program. The sample data stays available and can be loaded on demand
+// from inside the app (admin "Load sample data" button) or via
+// `node backend/seed.js --demo`.
 async function seedDatabase(options = {}) {
   const dbPath =
     options.dbPath ||
     process.env.BUDGETHUB_DB_PATH ||
     path.join(__dirname, '..', 'budgethub.db');
   const excelPath =
-    options.excelPath || path.join(__dirname, '..', 'Example', 'test.xlsx');
+    options.excelPath ||
+    process.env.BUDGETHUB_EXAMPLE_PATH ||
+    path.join(__dirname, '..', 'Example', 'test.xlsx');
+  const withDemo = options.withDemo === true;
 
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
@@ -32,35 +42,13 @@ async function seedDatabase(options = {}) {
     db.exec(schema);
     console.log('[seed] Schema created.');
 
-    // 1. Departments
-    const departmentsList = [
-      { code: 'D01', name: 'ผกส.กฟส.ศรช.' },
-      { code: 'D02', name: 'ผปบ.กฟส.ศรช.' },
-      { code: 'D03', name: 'ผบส.กฟส.ศรช.' },
-      { code: 'D04', name: 'ผคพ.กฟส.ศรช.' },
-      { code: 'D05', name: 'กฟย.เกาะสีชัง' },
-    ];
-
-    const insertDept = db.prepare(
-      'INSERT INTO departments (id, dept_code, dept_name) VALUES (?, ?, ?)'
-    );
-    const deptMap = {}; // name -> id
-    for (const dept of departmentsList) {
-      const id = uuid();
-      insertDept.run(id, dept.code, dept.name);
-      deptMap[dept.name] = id;
-    }
-    console.log('[seed] Departments seeded.');
-
-    // 2. Users
+    // The admin account is always required: the desktop build signs in as this
+    // single user and the API resolves every request to it.
     const adminPasswordHash = bcrypt.hashSync('admin1234', 10);
-    const editorPasswordHash = bcrypt.hashSync('password123', 10);
-
     const insertUser = db.prepare(
       `INSERT INTO users (id, username, password_hash, full_name, role, department_id, email)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     );
-
     const adminId = uuid();
     insertUser.run(
       adminId,
@@ -71,44 +59,14 @@ async function seedDatabase(options = {}) {
       null,
       'admin@budgethub.com'
     );
+    console.log('[seed] Admin account seeded.');
 
-    const editorMap = {};
-    for (const dept of departmentsList) {
-      const id = uuid();
-      const username = `editor_${dept.code.toLowerCase()}`;
-      insertUser.run(
-        id,
-        username,
-        editorPasswordHash,
-        `Editor ${dept.name}`,
-        'editor',
-        deptMap[dept.name],
-        `${username}@budgethub.com`
-      );
-      editorMap[dept.name] = id;
+    if (withDemo) {
+      await seedDemoData(db, { excelPath, adminId, insertUser });
+      console.log('[seed] Demo/sample data seeded.');
+    } else {
+      console.log('[seed] Empty database (no demo data).');
     }
-
-    insertUser.run(
-      uuid(),
-      'viewer',
-      editorPasswordHash,
-      'Viewer User',
-      'viewer',
-      null,
-      'viewer@budgethub.com'
-    );
-    console.log('[seed] Users seeded.');
-
-    // 3. Budget period for April 2026
-    const periodId = uuid();
-    db.prepare(
-      `INSERT INTO budget_periods (id, month, year, status, created_by)
-       VALUES (?, 4, 2026, 'open', ?)`
-    ).run(periodId, adminId);
-    console.log('[seed] Budget period (April 2026) seeded.');
-
-    // 4. Demo entries imported from the example Excel sheet (best-effort).
-    await seedFromExcel(db, { excelPath, periodId, deptMap, editorMap, adminId });
 
     console.log('[seed] Seeding completed successfully.');
   } finally {
@@ -116,7 +74,69 @@ async function seedDatabase(options = {}) {
   }
 }
 
-async function seedFromExcel(db, { excelPath, periodId, deptMap, editorMap, adminId }) {
+// Seeds the educational sample dataset into an already-created database that
+// has the schema + admin account. Synchronous (better-sqlite3) version used by
+// the standalone seed script.
+async function seedDemoData(db, { excelPath, adminId, insertUser }) {
+  // 1. Departments
+  const departmentsList = [
+    { code: 'D01', name: 'ผกส.กฟส.ศรช.' },
+    { code: 'D02', name: 'ผปบ.กฟส.ศรช.' },
+    { code: 'D03', name: 'ผบส.กฟส.ศรช.' },
+    { code: 'D04', name: 'ผคพ.กฟส.ศรช.' },
+    { code: 'D05', name: 'กฟย.เกาะสีชัง' },
+  ];
+
+  const insertDept = db.prepare(
+    'INSERT INTO departments (id, dept_code, dept_name) VALUES (?, ?, ?)'
+  );
+  const deptMap = {}; // name -> id
+  for (const dept of departmentsList) {
+    const id = uuid();
+    insertDept.run(id, dept.code, dept.name);
+    deptMap[dept.name] = id;
+  }
+
+  // 2. Editor + viewer accounts (only meaningful with the demo departments)
+  const editorPasswordHash = bcrypt.hashSync('password123', 10);
+  const editorMap = {};
+  for (const dept of departmentsList) {
+    const id = uuid();
+    const username = `editor_${dept.code.toLowerCase()}`;
+    insertUser.run(
+      id,
+      username,
+      editorPasswordHash,
+      `Editor ${dept.name}`,
+      'editor',
+      deptMap[dept.name],
+      `${username}@budgethub.com`
+    );
+    editorMap[dept.name] = id;
+  }
+
+  insertUser.run(
+    uuid(),
+    'viewer',
+    editorPasswordHash,
+    'Viewer User',
+    'viewer',
+    null,
+    'viewer@budgethub.com'
+  );
+
+  // 3. Budget period for April 2026
+  const periodId = uuid();
+  db.prepare(
+    `INSERT INTO budget_periods (id, month, year, status, created_by)
+     VALUES (?, 4, 2026, 'open', ?)`
+  ).run(periodId, adminId);
+
+  // 4. Demo entries imported from the example Excel sheet (best-effort).
+  await importExcelEntries(db, { excelPath, periodId, deptMap, editorMap, adminId });
+}
+
+async function importExcelEntries(db, { excelPath, periodId, deptMap, editorMap, adminId }) {
   if (!fs.existsSync(excelPath)) {
     console.warn(`[seed] Example file not found at ${excelPath}; skipping demo entries.`);
     return;
@@ -232,8 +252,10 @@ async function seedFromExcel(db, { excelPath, periodId, deptMap, editorMap, admi
 module.exports = { seedDatabase };
 
 // Allow `node backend/seed.js` for standalone seeding during development.
+// Pass `--demo` to also load the educational sample dataset.
 if (require.main === module) {
-  seedDatabase()
+  const withDemo = process.argv.includes('--demo');
+  seedDatabase({ withDemo })
     .then(() => process.exit(0))
     .catch((err) => {
       console.error('[seed] Fatal:', err);

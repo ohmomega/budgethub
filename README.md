@@ -15,6 +15,15 @@
 
 > **🇬🇧 English** and **🇹🇭 ภาษาไทย** below. / มีทั้งภาษาอังกฤษและภาษาไทยด้านล่าง
 
+> ⚠️ **For educational purposes only.** This program and all data shown in it
+> (departments, cost-center codes, budget figures, sample sheets) are provided
+> **for learning and demonstration only**. They are not official records and
+> must not be used for real financial, accounting, or operational decisions.
+>
+> ⚠️ **เพื่อการศึกษาเท่านั้น** โปรแกรมนี้และข้อมูลทั้งหมดในโปรแกรม (แผนก รหัสศูนย์ต้นทุน
+> ตัวเลขงบประมาณ และแผ่นงานตัวอย่าง) จัดทำขึ้น **เพื่อการเรียนรู้และการสาธิตเท่านั้น**
+> ไม่ใช่ข้อมูลทางราชการจริง และไม่ควรนำไปใช้ในการตัดสินใจทางการเงิน บัญชี หรือการปฏิบัติงานจริง
+
 <p align="center">
   <img src="docs/screenshots/dashboard.png" width="800" alt="Dashboard"><br>
   <img src="docs/screenshots/budget-table.png" width="800" alt="Budget table"><br>
@@ -62,13 +71,43 @@ All data is stored locally in an embedded SQLite file.
 2. Run the installer and follow the wizard (you can choose the install folder).
 3. Launch **BudgetHub** from the Start Menu or Desktop shortcut.
 
-> **Note about the SmartScreen warning:** the installer is not code-signed, so on
-> first run Windows may show *"Windows protected your PC."* Click **More info → Run
-> anyway**. This is expected for unsigned apps.
-
 No Node.js, database, or internet connection is required to use the app.
 
+### "Unknown publisher" / SmartScreen warning — this is normal
+
+BudgetHub is a free, open-source app and the installer is **not code-signed**
+(a code-signing certificate costs money each year). Because of that, Windows and
+your browser will warn you that the publisher is "Unknown." The app is safe —
+here is how to get past each warning:
+
+**1) While downloading (Edge/Chrome may say the file "isn't commonly downloaded"):**
+- Click the **•••** (more) button next to the download, then choose **Keep**.
+- If asked again, choose **Keep anyway** / **Show more → Keep anyway**.
+
+**2) When you run `BudgetHub.Setup.1.0.0.exe` (blue "Windows protected your PC" box):**
+- Click the **More info** link.
+- Then click the **Run anyway** button that appears.
+
+That's it — the installer will start. You only need to do this once. If you'd
+rather verify the file first, you can right-click it → **Properties → Digital
+Signatures / Details**, or scan it with your antivirus.
+
+### A fresh install starts empty
+
+A new install (or a freshly reset database) opens **completely empty** — no
+sample departments, cost centers, or budget sheets — so each office can enter
+its own real data. The original educational/demo dataset is preserved and can
+be loaded any time:
+
+- **Inside the app:** sign in as admin, open the **Dashboard**, and click
+  **Load sample data**.
+- **From source (developers):** run `npm run seed:demo` to build a database
+  that already contains the demo data.
+
 ### Default login accounts
+
+The desktop build signs in automatically as `admin`. The editor/viewer accounts
+below only exist after the sample data has been loaded.
 
 | Username | Password | Role |
 |---|---|---|
@@ -168,11 +207,24 @@ BudgetHub เป็น **โปรแกรมเดสก์ท็อปบน 
 2. เปิดไฟล์ติดตั้งและทำตามขั้นตอน (เลือกโฟลเดอร์ติดตั้งได้)
 3. เปิดโปรแกรม **BudgetHub** จาก Start Menu หรือไอคอนบนหน้าจอ
 
-> **หมายเหตุเรื่องการเตือนของ SmartScreen:** ไฟล์ติดตั้งยังไม่ได้เซ็นใบรับรอง (code signing)
-> ดังนั้นครั้งแรก Windows อาจขึ้นข้อความ *"Windows protected your PC"* ให้กด
-> **More info → Run anyway** เป็นเรื่องปกติของโปรแกรมที่ยังไม่ได้เซ็น
-
 การใช้งานโปรแกรม **ไม่ต้องติดตั้ง Node.js ฐานข้อมูล หรือเชื่อมต่ออินเทอร์เน็ต**
+
+### คำเตือน "Unknown publisher" / SmartScreen — เป็นเรื่องปกติ
+
+BudgetHub เป็นโปรแกรมฟรีและโอเพนซอร์ส ไฟล์ติดตั้ง **ยังไม่ได้เซ็นใบรับรอง (code signing)**
+เพราะใบรับรองมีค่าใช้จ่ายรายปี ทำให้ Windows และเบราว์เซอร์ขึ้นเตือนว่าผู้เผยแพร่ "ไม่ทราบ"
+โปรแกรมปลอดภัยดี วิธีผ่านการเตือนแต่ละจุดมีดังนี้:
+
+**1) ตอนดาวน์โหลด (Edge/Chrome อาจเตือนว่าไฟล์ "ไม่ค่อยมีคนดาวน์โหลด"):**
+- กดปุ่ม **•••** (จุดสามจุด) ข้างไฟล์ที่ดาวน์โหลด แล้วเลือก **Keep / เก็บไฟล์ไว้**
+- หากถามซ้ำ ให้เลือก **Keep anyway / เก็บไว้อยู่ดี**
+
+**2) ตอนเปิดไฟล์ `BudgetHub.Setup.1.0.0.exe` (กล่องสีน้ำเงิน "Windows protected your PC"):**
+- กดลิงก์ **More info**
+- จากนั้นกดปุ่ม **Run anyway** ที่ปรากฏขึ้น
+
+เพียงเท่านี้ตัวติดตั้งก็จะเริ่มทำงาน ทำครั้งเดียวพอ หากต้องการตรวจสอบไฟล์ก่อน
+สามารถคลิกขวาที่ไฟล์ → **Properties** หรือสแกนด้วยโปรแกรมแอนตี้ไวรัสได้
 
 ### บัญชีผู้ใช้เริ่มต้น
 

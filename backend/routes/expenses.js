@@ -50,7 +50,10 @@ router.get('/expenses', verifyToken, async (req, res) => {
 
   try {
     const periodRes = await db.query(
-      'SELECT id, status FROM budget_periods WHERE month = $1 AND year = $2',
+      `SELECT id, status, month, year, created_at,
+              (SELECT MAX(e.updated_at) FROM expense_entries e
+               WHERE e.period_id = budget_periods.id AND e.is_deleted = false) AS last_modified
+       FROM budget_periods WHERE month = $1 AND year = $2`,
       [parseInt(month), parseInt(year)]
     );
 
@@ -397,7 +400,13 @@ router.get('/audit-logs', verifyToken, async (req, res) => {
 // @desc    Get all budget periods
 router.get('/periods', verifyToken, async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM budget_periods ORDER BY year DESC, month DESC');
+    const result = await db.query(
+      `SELECT p.*,
+              (SELECT MAX(e.updated_at) FROM expense_entries e
+               WHERE e.period_id = p.id AND e.is_deleted = false) AS last_modified
+       FROM budget_periods p
+       ORDER BY p.year DESC, p.month DESC`
+    );
     res.json(result.rows);
   } catch (err) {
     console.error('Fetch periods error:', err);
@@ -578,7 +587,9 @@ router.get('/dashboard', verifyToken, async (req, res) => {
 
     // 5. Latest budget sheets
     const sheetsQuery = `
-      SELECT p.*, u.username as creator_username, u.full_name as creator_name
+      SELECT p.*, u.username as creator_username, u.full_name as creator_name,
+             (SELECT MAX(e.updated_at) FROM expense_entries e
+              WHERE e.period_id = p.id AND e.is_deleted = false) AS last_modified
       FROM budget_periods p
       JOIN users u ON p.created_by = u.id
       ORDER BY p.year DESC, p.month DESC

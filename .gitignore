@@ -21,6 +21,7 @@ budgethub.db
 # Backups and scratch
 _backup_pg/
 iwant/
+PB/
 
 # Example: keep the seed spreadsheet, ignore photos
 Example/*.jpg

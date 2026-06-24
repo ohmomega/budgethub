@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
-import { 
-  FolderOpen, 
-  Trash2, 
-  Plus, 
-  Filter, 
-  Loader2, 
+import MonthYearPicker from './MonthYearPicker';
+import {
+  FolderOpen,
+  Trash2,
+  Plus,
+  Filter,
+  Loader2,
   Calendar,
   X,
-  Search
+  Search,
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 
 const MONTH_NAMES = {
@@ -82,8 +85,8 @@ const YEARS = [
 export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
   const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filterMonth, setFilterMonth] = useState(''); // '1'-'12' or empty
-  const [filterYear, setFilterYear] = useState(''); // '2024'-'2030' or empty
+  const [filterMonth, setFilterMonth] = useState(null); // number 1-12 or null
+  const [filterYear, setFilterYear] = useState(null); // number or null
   
   // Selection
   const [selectedPeriods, setSelectedPeriods] = useState([]);
@@ -166,10 +169,28 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
 
   // Filter logic
   const filteredPeriods = periods.filter(p => {
-    if (filterMonth && p.month !== parseInt(filterMonth)) return false;
-    if (filterYear && p.year !== parseInt(filterYear)) return false;
+    if (filterMonth && p.month !== filterMonth) return false;
+    if (filterYear && p.year !== filterYear) return false;
     return true;
   });
+
+  // Export a single sheet to PDF or Excel.
+  const handleExport = async (e, p, type) => {
+    e.stopPropagation();
+    try {
+      await api.get('/auth/me'); // refresh token if needed
+      const token = localStorage.getItem('accessToken');
+      window.open(`/api/export/${type}?month=${p.month}&year=${p.year}&Authorization=Bearer ${token}`);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert(lang === 'TH' ? 'ไม่สามารถส่งออกไฟล์ได้' : 'Could not export file');
+    }
+  };
+
+  const formatModified = (p) => {
+    const ts = p.last_modified || p.created_at;
+    return ts ? new Date(ts).toLocaleString(lang === 'TH' ? 'th-TH' : 'en-GB') : '-';
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -202,45 +223,16 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Month select */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400">{t.filterByMonthYear}:</span>
-            <select
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
-            >
-              <option value="">{lang === 'TH' ? '-- ทุกเดือน --' : '-- All Months --'}</option>
-              {MONTH_NAMES[lang].map((name, idx) => (
-                <option key={idx + 1} value={idx + 1}>{name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Year select */}
-          <select
-            value={filterYear}
-            onChange={(e) => setFilterYear(e.target.value)}
-            className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
-          >
-            <option value="">{lang === 'TH' ? '-- ทุกปี --' : '-- All Years --'}</option>
-            {YEARS.map(y => (
-              <option key={y.value} value={y.value}>
-                {lang === 'TH' ? y.labelTH : y.labelEN}
-              </option>
-            ))}
-          </select>
-
-          {/* Reset Filters */}
-          {(filterMonth || filterYear) && (
-            <button
-              onClick={() => { setFilterMonth(''); setFilterYear(''); }}
-              className="p-2 text-slate-400 hover:text-slate-600 transition"
-              title="Clear Filters"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+          <span className="text-xs font-bold text-slate-400">{t.filterByMonthYear}:</span>
+          <MonthYearPicker
+            month={filterMonth}
+            year={filterYear}
+            onChange={(m, y) => { setFilterMonth(m); setFilterYear(y); }}
+            lang={lang}
+            allowClear
+            placeholder={lang === 'TH' ? 'ทุกเดือน/ปี' : 'All months/years'}
+            widthClass="w-56"
+          />
         </div>
       </div>
 
@@ -304,7 +296,7 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
                       </td>
                       <td className="px-6 py-4 font-semibold">{p.creator_username || 'admin'}</td>
                       <td className="px-6 py-4 text-slate-400">
-                        {new Date(p.created_at).toLocaleString('th-TH')}
+                        {formatModified(p)}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -315,7 +307,25 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
                             <FolderOpen className="h-4.5 w-4.5" />
                             <span>{t.openBtn}</span>
                           </button>
-                          
+
+                          {/* Export to PDF */}
+                          <button
+                            onClick={(e) => handleExport(e, p, 'pdf')}
+                            className="p-1.5 text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl cursor-pointer transition"
+                            title={lang === 'TH' ? 'ส่งออก PDF' : 'Export PDF'}
+                          >
+                            <FileText className="h-4.5 w-4.5" />
+                          </button>
+
+                          {/* Export to Excel */}
+                          <button
+                            onClick={(e) => handleExport(e, p, 'xlsx')}
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 border border-transparent hover:border-emerald-200 rounded-xl cursor-pointer transition"
+                            title={lang === 'TH' ? 'ส่งออก Excel' : 'Export Excel'}
+                          >
+                            <FileSpreadsheet className="h-4.5 w-4.5" />
+                          </button>
+
                           {user.role === 'admin' && (
                             <button
                               onClick={() => setPeriodToDelete(p.id)}
@@ -353,38 +363,18 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
             </div>
 
             <form onSubmit={handleCreateSheetSubmit} className="space-y-4">
-              {/* Month */}
+              {/* Month / Year via calendar picker */}
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                  {t.modalMonth}
+                  {lang === 'TH' ? 'เลือกเดือน/ปี' : 'Select Month / Year'}
                 </label>
-                <select
-                  value={createMonth}
-                  onChange={(e) => setCreateMonth(parseInt(e.target.value))}
-                  className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
-                >
-                  {MONTH_NAMES[lang].map((name, idx) => (
-                    <option key={idx + 1} value={idx + 1}>{name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Year */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                  {t.modalYear}
-                </label>
-                <select
-                  value={createYear}
-                  onChange={(e) => setCreateYear(parseInt(e.target.value))}
-                  className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
-                >
-                  {YEARS.map(y => (
-                    <option key={y.value} value={y.value}>
-                      {lang === 'TH' ? y.labelTH : y.labelEN}
-                    </option>
-                  ))}
-                </select>
+                <MonthYearPicker
+                  month={createMonth}
+                  year={createYear}
+                  onChange={(m, y) => { setCreateMonth(m); setCreateYear(y); }}
+                  lang={lang}
+                  widthClass="w-full"
+                />
               </div>
 
               {/* Action Buttons */}

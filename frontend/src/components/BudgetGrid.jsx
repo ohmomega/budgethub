@@ -547,7 +547,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
             </div>
 
             <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
-              แก้ไขล่าสุด: {period ? new Date(period.created_at).toLocaleString('th-TH') : '-'}
+              {lang === 'TH' ? 'แก้ไขล่าสุด' : 'Last modified'}: {period && (period.last_modified || period.created_at) ? new Date(period.last_modified || period.created_at).toLocaleString(lang === 'TH' ? 'th-TH' : 'en-GB') : '-'}
             </span>
           </div>
         </div>

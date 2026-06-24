@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
-import { 
-  FileDown, 
-  Plus, 
-  TrendingDown, 
-  Coins, 
+import MonthYearPicker from './MonthYearPicker';
+import {
+  FileDown,
+  Plus,
+  TrendingDown,
+  Coins,
   ChevronRight,
   Loader2,
   Calendar,
+  Database,
   X
 } from 'lucide-react';
 
@@ -49,7 +51,12 @@ const dict = {
     cancel: 'ยกเลิก',
     submit: 'สร้างแผ่นงาน',
     deptFilterLabel: 'แผนกที่กรอง:',
-    allDepts: 'ทุกแผนก (รวม)'
+    allDepts: 'ทุกแผนก (รวม)',
+    emptyState: 'ยังไม่มีข้อมูลแผ่นงบประมาณ กดปุ่มเพื่อเริ่มสร้างแผ่นงานใหม่ หรือโหลดข้อมูลตัวอย่างเพื่อทดลองใช้งาน',
+    loadSample: 'โหลดข้อมูลตัวอย่าง',
+    loadingSample: 'กำลังโหลดข้อมูลตัวอย่าง...',
+    loadSampleDone: 'โหลดข้อมูลตัวอย่างสำเร็จ',
+    loadSampleSkipped: 'มีข้อมูลตัวอย่างอยู่แล้ว'
   },
   EN: {
     title: 'Dashboard',
@@ -77,7 +84,12 @@ const dict = {
     cancel: 'Cancel',
     submit: 'Create Sheet',
     deptFilterLabel: 'Filter Department:',
-    allDepts: 'All Departments (Consolidated)'
+    allDepts: 'All Departments (Consolidated)',
+    emptyState: 'No budget sheets yet. Click to create a new sheet, or load sample data to explore the app.',
+    loadSample: 'Load Sample Data',
+    loadingSample: 'Loading sample data...',
+    loadSampleDone: 'Sample data loaded successfully',
+    loadSampleSkipped: 'Sample data already exists'
   }
 };
 
@@ -98,10 +110,12 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
   const [selectedDeptId, setSelectedDeptId] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-  
+  const [loadingSample, setLoadingSample] = useState(false);
+
   // Create sheet state
-  const [createMonth, setCreateMonth] = useState(6); // June
-  const [createYear, setCreateYear] = useState(2026);
+  const now = new Date();
+  const [createMonth, setCreateMonth] = useState(now.getMonth() + 1);
+  const [createYear, setCreateYear] = useState(now.getFullYear());
 
   const t = dict[lang];
 
@@ -147,6 +161,26 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
     } catch (err) {
       console.error(err);
       alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการสร้างแผ่นงาน');
+    }
+  };
+
+  const handleLoadSampleData = async () => {
+    if (loadingSample) return;
+    setLoadingSample(true);
+    try {
+      const res = await api.post('/sample-data');
+      // Refresh departments + dashboard so the new data shows immediately.
+      try {
+        const deptRes = await api.get('/departments');
+        setDepartments(deptRes.data);
+      } catch (_e) { /* ignore */ }
+      await fetchDashboardData();
+      alert(res.data?.skipped ? t.loadSampleSkipped : t.loadSampleDone);
+    } catch (err) {
+      console.error('Load sample data failed:', err);
+      alert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถโหลดข้อมูลตัวอย่างได้' : 'Could not load sample data'));
+    } finally {
+      setLoadingSample(false);
     }
   };
 
@@ -295,8 +329,18 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-500">
-          ไม่พบข้อมูลแผ่นงบประมาณในขณะนี้ กรุณากดปุ่มเพื่อเริ่มสร้างแผ่นงานงบประมาณใหม่
+        <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-500 space-y-5">
+          <p className="text-sm">{t.emptyState}</p>
+          {user.role === 'admin' && (
+            <button
+              onClick={handleLoadSampleData}
+              disabled={loadingSample}
+              className="glass-btn-secondary py-2.5 mx-auto disabled:opacity-60"
+            >
+              {loadingSample ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <Database className="h-4.5 w-4.5" />}
+              <span>{loadingSample ? t.loadingSample : t.loadSample}</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -439,7 +483,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                     </td>
                     <td className="px-6 py-4 font-semibold">{sheet.creator_name || sheet.creator_username}</td>
                     <td className="px-6 py-4 text-slate-400">
-                      {new Date(sheet.created_at).toLocaleString('th-TH')}
+                      {new Date(sheet.last_modified || sheet.created_at).toLocaleString(lang === 'TH' ? 'th-TH' : 'en-GB')}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button
@@ -475,38 +519,18 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
             </div>
 
             <form onSubmit={handleCreateSheet} className="space-y-4">
-              {/* Month */}
+              {/* Month / Year via calendar picker */}
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                  {t.modalMonth}
+                  {lang === 'TH' ? 'เลือกเดือน/ปี' : 'Select Month / Year'}
                 </label>
-                <select
-                  value={createMonth}
-                  onChange={(e) => setCreateMonth(parseInt(e.target.value))}
-                  className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
-                >
-                  {MONTH_NAMES[lang].map((name, idx) => (
-                    <option key={idx + 1} value={idx + 1}>{name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Year */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                  {t.modalYear}
-                </label>
-                <select
-                  value={createYear}
-                  onChange={(e) => setCreateYear(parseInt(e.target.value))}
-                  className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
-                >
-                  {YEARS.map(y => (
-                    <option key={y.value} value={y.value}>
-                      {lang === 'TH' ? y.labelTH : y.labelEN}
-                    </option>
-                  ))}
-                </select>
+                <MonthYearPicker
+                  month={createMonth}
+                  year={createYear}
+                  onChange={(m, y) => { setCreateMonth(m); setCreateYear(y); }}
+                  lang={lang}
+                  widthClass="w-full"
+                />
               </div>
 
               {/* Action Buttons */}
