@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api';
+import api, { downloadBlob } from '../api';
 import MonthYearPicker from './MonthYearPicker';
 import {
   BarChart3,
@@ -10,6 +10,9 @@ import {
   Loader2,
   Calendar,
   Database,
+  FileText,
+  FileSpreadsheet,
+  Image as ImageIcon,
   X
 } from 'lucide-react';
 
@@ -234,6 +237,80 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
     setReportYear(year);
     setActiveReportMonth(null);
     fetchYearly(year);
+  };
+
+  // Export the yearly report as a file. .xlsx / .pdf are built by the backend
+  // from the same 12-month totals; .jpg is an image of the on-screen graph.
+  const handleReportExport = async (type) => {
+    try {
+      if (type === 'jpg') {
+        exportGraphJpg();
+        return;
+      }
+      const deptParam = selectedDeptId === 'all' ? '' : `&department_id=${selectedDeptId}`;
+      const res = await api.get(`/export/yearly-${type}?year=${reportYear}${deptParam}`, {
+        responseType: 'blob',
+      });
+      downloadBlob(res.data, `BudgetHub_report_${reportYear}.${type}`);
+    } catch (err) {
+      console.error('Report export failed:', err);
+      alert(lang === 'TH' ? 'ไม่สามารถส่งออกรายงานได้' : 'Could not export the report');
+    }
+  };
+
+  // Draw the 12-month chart onto a canvas and download it as a JPG.
+  const exportGraphJpg = () => {
+    const months = yearly?.months || [];
+    if (months.length === 0) return;
+    const W = 1100, H = 620, padL = 70, padR = 30;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    const yLabel = lang === 'TH' ? reportYear + 543 : reportYear;
+    ctx.fillStyle = '#0f172a';
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 26px Tahoma, "Segoe UI", sans-serif';
+    ctx.fillText(`${t.reportModalTitle} — ${yLabel}`, padL, 46);
+    ctx.fillStyle = '#475569';
+    ctx.font = '16px Tahoma, "Segoe UI", sans-serif';
+    ctx.fillText(
+      `${t.reportYearTotal}: ฿${(yearly?.yearTotal?.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      padL, 76
+    );
+
+    const chartTop = 110, chartBottom = H - 70, chartLeft = padL, chartRight = W - padR;
+    const maxAmt = Math.max(...months.map(m => m.totalAmount), 1);
+    const slot = (chartRight - chartLeft) / 12;
+
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.beginPath();
+    ctx.moveTo(chartLeft, chartBottom);
+    ctx.lineTo(chartRight, chartBottom);
+    ctx.stroke();
+
+    months.forEach((m, i) => {
+      const bw = slot * 0.6;
+      const x = chartLeft + slot * i + (slot - bw) / 2;
+      const hgt = (m.totalAmount / maxAmt) * (chartBottom - chartTop);
+      const y = chartBottom - hgt;
+      const grad = ctx.createLinearGradient(0, y, 0, chartBottom);
+      grad.addColorStop(0, '#f43f5e');
+      grad.addColorStop(1, '#ec4899');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, y, bw, Math.max(hgt, m.totalAmount > 0 ? 2 : 0));
+      ctx.fillStyle = '#64748b';
+      ctx.font = '13px Tahoma, "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(MONTH_NAMES[lang][m.month - 1].substring(0, 3), x + bw / 2, chartBottom + 22);
+    });
+
+    canvas.toBlob((blob) => {
+      if (blob) downloadBlob(blob, `BudgetHub_report_${reportYear}.jpg`);
+    }, 'image/jpeg', 0.95);
   };
 
   const getPeriodLabel = (period) => {
@@ -708,7 +785,35 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
               );
             })()}
 
-            <div className="flex items-center justify-end pt-5 mt-5 border-t border-slate-100">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-5 mt-5 border-t border-slate-100">
+              {/* Export options: PDF / JPG / XLSX */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+                  {lang === 'TH' ? 'ส่งออก:' : 'Export:'}
+                </span>
+                <button
+                  onClick={() => handleReportExport('pdf')}
+                  disabled={yearlyLoading || !(yearly?.months || []).some(m => m.totalAmount > 0)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:border-rose-500 hover:bg-rose-50/50 rounded-xl text-xs font-bold text-rose-600 cursor-pointer transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <FileText className="h-4 w-4" /> PDF
+                </button>
+                <button
+                  onClick={() => handleReportExport('jpg')}
+                  disabled={yearlyLoading || !(yearly?.months || []).some(m => m.totalAmount > 0)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:border-amber-500 hover:bg-amber-50/50 rounded-xl text-xs font-bold text-amber-600 cursor-pointer transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ImageIcon className="h-4 w-4" /> JPG
+                </button>
+                <button
+                  onClick={() => handleReportExport('xlsx')}
+                  disabled={yearlyLoading || !(yearly?.months || []).some(m => m.totalAmount > 0)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 rounded-xl text-xs font-bold text-emerald-600 cursor-pointer transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <FileSpreadsheet className="h-4 w-4" /> XLSX
+                </button>
+              </div>
+
               <button
                 onClick={() => setShowReportModal(false)}
                 className="glass-btn-secondary text-sm font-bold"

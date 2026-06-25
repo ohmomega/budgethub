@@ -530,4 +530,211 @@ router.get('/pdf', verifyToken, async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Yearly report exports (used by the dashboard report graph: PDF / XLSX).
+// ---------------------------------------------------------------------------
+
+// Aggregate per-month totals for a whole year (optionally one department).
+async function getYearlyData(year, deptId) {
+  const q = `
+    SELECT p.month,
+      COALESCE(SUM(e.total_amount), 0) AS total_amount,
+      COALESCE(SUM(CASE WHEN e.is_budget_cut = true THEN e.total_amount ELSE 0 END), 0) AS budget_cut_total
+    FROM budget_periods p
+    LEFT JOIN expense_entries e
+      ON e.period_id = p.id AND e.is_deleted = false
+      AND ($2::uuid IS NULL OR e.department_id = $2)
+    WHERE p.year = $1
+    GROUP BY p.month`;
+  const rows = (await db.query(q, [year, deptId])).rows;
+  const byMonth = {};
+  for (const r of rows) {
+    byMonth[r.month] = {
+      totalAmount: parseFloat(r.total_amount),
+      budgetCutTotal: parseFloat(r.budget_cut_total)
+    };
+  }
+  const months = [];
+  let yearTotal = 0;
+  let yearCut = 0;
+  for (let m = 1; m <= 12; m++) {
+    const v = byMonth[m] || { totalAmount: 0, budgetCutTotal: 0 };
+    months.push({ month: m, ...v });
+    yearTotal += v.totalAmount;
+    yearCut += v.budgetCutTotal;
+  }
+  return { months, yearTotal, yearCut };
+}
+
+function normalizeDept(deptId) {
+  if (!deptId || deptId === 'all' || deptId === '') return null;
+  return deptId;
+}
+
+// @route   GET /api/export/yearly-xlsx
+router.get('/yearly-xlsx', verifyToken, async (req, res) => {
+  const year = parseInt(req.query.year);
+  if (!year) return res.status(400).json({ error: 'year is required' });
+  const deptId = normalizeDept(req.query.department_id);
+
+  try {
+    const { months, yearTotal, yearCut } = await getYearlyData(year, deptId);
+
+    const border = {
+      top: { style: 'thin', color: { argb: 'FFD3D3D3' } },
+      left: { style: 'thin', color: { argb: 'FFD3D3D3' } },
+      bottom: { style: 'thin', color: { argb: 'FFD3D3D3' } },
+      right: { style: 'thin', color: { argb: 'FFD3D3D3' } }
+    };
+
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet(`สรุป ${year + 543}`);
+    ws.columns = [
+      { key: 'month', width: 22 },
+      { key: 'total', width: 22 },
+      { key: 'cut', width: 24 }
+    ];
+
+    ws.mergeCells('A1:C1');
+    ws.getCell('A1').value = `รายงานสรุปงบประมาณรายปี ${year + 543}`;
+    ws.getCell('A1').font = { name: 'Tahoma', size: 16, bold: true };
+    ws.getCell('A1').alignment = { horizontal: 'center' };
+
+    const headers = ['เดือน', 'ยอดรวม (บาท)', 'ยอดงบทำการที่ตัด (บาท)'];
+    const hRow = ws.getRow(3);
+    headers.forEach((h, i) => {
+      const c = hRow.getCell(i + 1);
+      c.value = h;
+      c.font = { name: 'Tahoma', size: 11, bold: true };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F2FF' } };
+      c.alignment = { horizontal: 'center' };
+      c.border = border;
+    });
+
+    let r = 4;
+    for (const m of months) {
+      const row = ws.getRow(r);
+      row.getCell(1).value = THAI_MONTHS[m.month];
+      row.getCell(2).value = m.totalAmount;
+      row.getCell(3).value = m.budgetCutTotal;
+      row.getCell(2).numFmt = '#,##0.00';
+      row.getCell(3).numFmt = '#,##0.00';
+      for (let c = 1; c <= 3; c++) {
+        row.getCell(c).border = border;
+        row.getCell(c).font = { name: 'Tahoma', size: 10 };
+      }
+      r++;
+    }
+
+    const tRow = ws.getRow(r);
+    tRow.getCell(1).value = 'รวมทั้งปี';
+    tRow.getCell(2).value = yearTotal;
+    tRow.getCell(3).value = yearCut;
+    tRow.getCell(2).numFmt = '#,##0.00';
+    tRow.getCell(3).numFmt = '#,##0.00';
+    for (let c = 1; c <= 3; c++) {
+      tRow.getCell(c).border = border;
+      tRow.getCell(c).font = { name: 'Tahoma', size: 11, bold: true };
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=BudgetHub_report_${year}.xlsx`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('Yearly xlsx export error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// @route   GET /api/export/yearly-pdf
+router.get('/yearly-pdf', verifyToken, async (req, res) => {
+  const year = parseInt(req.query.year);
+  if (!year) return res.status(400).json({ error: 'year is required' });
+  const deptId = normalizeDept(req.query.department_id);
+
+  try {
+    const { months, yearTotal, yearCut } = await getYearlyData(year, deptId);
+
+    const doc = new PDFDocument({
+      size: 'A4',
+      layout: 'portrait',
+      margins: { top: 40, left: 40, right: 40, bottom: 40 }
+    });
+    doc.registerFont('ThaiRegular', 'C:\\Windows\\Fonts\\tahoma.ttf');
+    doc.registerFont('ThaiBold', 'C:\\Windows\\Fonts\\tahomabd.ttf');
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=BudgetHub_report_${year}.pdf`);
+    doc.pipe(res);
+
+    doc.font('ThaiBold').fontSize(18).fillColor('#000000')
+      .text(`รายงานสรุปงบประมาณรายปี ${year + 543}`, { align: 'center' });
+    doc.moveDown(0.4);
+    doc.font('ThaiRegular').fontSize(12).fillColor('#333333')
+      .text(`ยอดรวมทั้งปี: ${yearTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท`, { align: 'center' });
+    doc.moveDown(1);
+
+    // Bar chart
+    const chartX = 60;
+    const chartW = 475;
+    const chartTop = doc.y;
+    const chartH = 180;
+    const baseY = chartTop + chartH;
+    const maxAmt = Math.max(...months.map(m => m.totalAmount), 1);
+    const slot = chartW / 12;
+
+    doc.lineWidth(0.5).strokeColor('#CCCCCC')
+      .moveTo(chartX, baseY).lineTo(chartX + chartW, baseY).stroke();
+
+    months.forEach((m, i) => {
+      const bw = slot * 0.6;
+      const x = chartX + slot * i + (slot - bw) / 2;
+      const h = (m.totalAmount / maxAmt) * chartH;
+      const y = baseY - h;
+      if (m.totalAmount > 0) doc.rect(x, y, bw, h).fill('#EC4899');
+      doc.fillColor('#666666').font('ThaiRegular').fontSize(7)
+        .text(THAI_MONTHS[m.month].substring(0, 3), x - 4, baseY + 4, { width: bw + 8, align: 'center' });
+    });
+
+    // Table
+    let ty = baseY + 30;
+    const cols = [
+      { x: 60, w: 200, label: 'เดือน', align: 'left' },
+      { x: 260, w: 140, label: 'ยอดรวม (บาท)', align: 'right' },
+      { x: 400, w: 135, label: 'ยอดงบที่ตัด (บาท)', align: 'right' }
+    ];
+
+    const drawRow = (cells, bold, fill) => {
+      if (fill) doc.rect(60, ty, 475, 20).fill(fill);
+      doc.font(bold ? 'ThaiBold' : 'ThaiRegular').fontSize(10).fillColor('#000000');
+      cols.forEach((c, i) => {
+        doc.text(cells[i], c.x + 3, ty + 5, { width: c.w - 6, align: c.align });
+      });
+      doc.lineWidth(0.5).strokeColor('#DDDDDD')
+        .moveTo(60, ty + 20).lineTo(535, ty + 20).stroke();
+      ty += 20;
+    };
+
+    drawRow(cols.map(c => c.label), true, '#E6F2FF');
+    for (const m of months) {
+      drawRow([
+        THAI_MONTHS[m.month],
+        m.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 }),
+        m.budgetCutTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })
+      ], false, null);
+    }
+    drawRow([
+      'รวมทั้งปี',
+      yearTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }),
+      yearCut.toLocaleString(undefined, { minimumFractionDigits: 2 })
+    ], true, '#F5F5F5');
+
+    doc.end();
+  } catch (err) {
+    console.error('Yearly pdf export error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
