@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api';
 import MonthYearPicker from './MonthYearPicker';
 import {
-  FileDown,
+  BarChart3,
   Plus,
   TrendingDown,
   Coins,
@@ -29,8 +29,16 @@ const dict = {
     title: 'แผงควบคุม',
     greeting: (name) => `ยินดีต้อนรับกลับมา, ${name}. นี่คือสถานะงบประมาณของคุณโดยสรุป`,
     currentPeriod: 'งบประมาณปัจจุบัน:',
-    downloadReport: 'ดาวน์โหลดรายงาน',
+    downloadReport: 'ดูรายงานสรุป',
     createSheet: 'สร้างแผ่นใหม่',
+    reportModalTitle: 'รายงานสรุปยอดงบประมาณ',
+    reportYearLabel: 'ปีงบประมาณ (พ.ศ.):',
+    reportYearTotal: 'ยอดรวมทั้งปี',
+    reportMonthTotal: 'ยอดรวมเดือนที่เลือก',
+    reportSelectMonthHint: 'คลิกที่แท่งกราฟเพื่อดูยอดรวมรายเดือน',
+    reportNoData: 'ยังไม่มีข้อมูลงบประมาณในปีนี้',
+    reportLoading: 'กำลังโหลดรายงาน...',
+    close: 'ปิด',
     statBudgetCut: 'งบดำเนินงานที่ตัด',
     statTotal: 'ยอดรวมสุทธิ',
     monthlyComparison: 'การเปรียบเทียบรายเดือน',
@@ -62,8 +70,16 @@ const dict = {
     title: 'Dashboard',
     greeting: (name) => `Welcome back, ${name}. Here is your budget summary.`,
     currentPeriod: 'Active Budget Period:',
-    downloadReport: 'Download Report',
+    downloadReport: 'View Summary Report',
     createSheet: 'Create New Sheet',
+    reportModalTitle: 'Budget Summary Report',
+    reportYearLabel: 'Budget Year:',
+    reportYearTotal: 'Full-Year Total',
+    reportMonthTotal: 'Selected Month Total',
+    reportSelectMonthHint: 'Click a bar to see that month’s total',
+    reportNoData: 'No budget data for this year yet',
+    reportLoading: 'Loading report...',
+    close: 'Close',
     statBudgetCut: 'Operating Budget Cuts',
     statTotal: 'Net Grand Total',
     monthlyComparison: 'Monthly Comparison',
@@ -109,8 +125,14 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
   const [departments, setDepartments] = useState([]);
   const [selectedDeptId, setSelectedDeptId] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
   const [loadingSample, setLoadingSample] = useState(false);
+
+  // Report graph modal state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportYear, setReportYear] = useState(new Date().getFullYear());
+  const [yearly, setYearly] = useState(null);
+  const [yearlyLoading, setYearlyLoading] = useState(false);
+  const [activeReportMonth, setActiveReportMonth] = useState(null);
 
   // Create sheet state
   const now = new Date();
@@ -184,18 +206,34 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
     }
   };
 
-  const handleExport = async (type) => {
-    if (!data?.period) return;
+  // Fetch the 12-month totals for a year (used by the report graph modal).
+  const fetchYearly = async (year) => {
+    setYearlyLoading(true);
     try {
-      // Ping the auth/me endpoint to auto-refresh the token if it has expired
-      await api.get('/auth/me');
-      const token = localStorage.getItem('accessToken');
-      window.open(`/api/export/${type}?month=${data.period.month}&year=${data.period.year}&Authorization=Bearer ${token}`);
-      setShowExportModal(false);
+      const deptParam = selectedDeptId === 'all' ? '' : `&department_id=${selectedDeptId}`;
+      const res = await api.get(`/dashboard/yearly?year=${year}${deptParam}`);
+      setYearly(res.data);
     } catch (err) {
-      console.error('Refresh token failed before export:', err);
-      alert('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
+      console.error('Fetch yearly report error:', err);
+      setYearly(null);
+    } finally {
+      setYearlyLoading(false);
     }
+  };
+
+  // Open the on-screen report graph, defaulting to the active period's year.
+  const handleOpenReport = () => {
+    const year = data?.period?.year || new Date().getFullYear();
+    setReportYear(year);
+    setActiveReportMonth(data?.period?.month || null);
+    setShowReportModal(true);
+    fetchYearly(year);
+  };
+
+  const handleChangeReportYear = (year) => {
+    setReportYear(year);
+    setActiveReportMonth(null);
+    fetchYearly(year);
   };
 
   const getPeriodLabel = (period) => {
@@ -240,11 +278,11 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowExportModal(true)}
+            onClick={handleOpenReport}
             className="glass-btn-secondary py-2.5"
             disabled={!period}
           >
-            <FileDown className="h-4.5 w-4.5" />
+            <BarChart3 className="h-4.5 w-4.5" />
             <span>{t.downloadReport}</span>
           </button>
           
@@ -554,37 +592,128 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
         </div>
       )}
 
-      {/* 6. Modal: Export Select Format */}
-      {showExportModal && (
+      {/* 6. Modal: On-screen Report Graph (yearly / selected month totals) */}
+      {showReportModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-[28px] p-6 w-full max-w-sm shadow-2xl animate-scale-in">
+          <div className="bg-white border border-slate-200 rounded-[28px] p-6 w-full max-w-3xl shadow-2xl animate-scale-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-5">
               <h3 className="font-extrabold text-slate-900 text-base">
-                {t.downloadReport}
+                {t.reportModalTitle}
               </h3>
               <button
-                onClick={() => setShowExportModal(false)}
+                onClick={() => setShowReportModal(false)}
                 className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => handleExport('xlsx')}
-                className="p-4 border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition"
+            {/* Year selector */}
+            <div className="flex items-center gap-3 mb-5">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                {t.reportYearLabel}
+              </span>
+              <select
+                value={reportYear}
+                onChange={(e) => handleChangeReportYear(parseInt(e.target.value))}
+                className="text-sm font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
               >
-                <span className="font-black text-lg text-emerald-600">XLSX</span>
-                <span className="text-xs font-bold text-slate-500">Excel Spreadsheet</span>
-              </button>
-              
+                {YEARS.map(y => (
+                  <option key={y.value} value={y.value}>
+                    {lang === 'TH' ? y.labelTH : y.labelEN}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {yearlyLoading ? (
+              <div className="h-72 flex flex-col items-center justify-center gap-3 text-slate-400">
+                <Loader2 className="h-8 w-8 animate-spin text-[var(--color-primary)]" />
+                <span className="text-xs font-semibold">{t.reportLoading}</span>
+              </div>
+            ) : (() => {
+              const months = yearly?.months || [];
+              const maxAmt = Math.max(...months.map(m => m.totalAmount), 1);
+              const hasData = months.some(m => m.totalAmount > 0);
+              const selected = activeReportMonth ? months.find(m => m.month === activeReportMonth) : null;
+
+              return (
+                <div className="space-y-5">
+                  {/* Totals summary */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                        {t.reportYearTotal} ({lang === 'TH' ? reportYear + 543 : reportYear})
+                      </span>
+                      <span className="text-2xl font-black text-slate-900 mt-1 block tracking-tight">
+                        ฿{(yearly?.yearTotal?.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="bg-[var(--color-primary-bg-light)] border border-slate-200 rounded-2xl p-4">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                        {t.reportMonthTotal}
+                        {selected ? ` — ${MONTH_NAMES[lang][selected.month - 1]}` : ''}
+                      </span>
+                      <span className="text-2xl font-black text-[var(--color-primary)] mt-1 block tracking-tight">
+                        {selected
+                          ? `฿${selected.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                          : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 12-month bar chart */}
+                  {hasData ? (
+                    <div className="h-64 w-full flex items-end justify-between gap-1.5 border-b border-slate-100 pb-2">
+                      {months.map((m) => {
+                        const percentage = (m.totalAmount / maxAmt) * 90;
+                        const isActive = activeReportMonth === m.month;
+                        return (
+                          <button
+                            key={m.month}
+                            onClick={() => setActiveReportMonth(m.month)}
+                            className="h-full flex flex-col justify-end items-center group flex-1 relative cursor-pointer"
+                            title={`฿${m.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                          >
+                            <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] font-bold py-1 px-2 rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 shadow pointer-events-none whitespace-nowrap z-10">
+                              ฿{m.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </div>
+                            <div
+                              style={{ height: `${Math.max(percentage, m.totalAmount > 0 ? 3 : 0)}%` }}
+                              className={`w-full max-w-[34px] rounded-t-lg shadow-sm transition-all duration-300 ${
+                                isActive
+                                  ? 'bg-gradient-to-t from-[var(--color-primary)] to-[var(--color-primary-hover)]'
+                                  : 'bg-gradient-to-t from-rose-400 to-pink-500 group-hover:from-rose-500 group-hover:to-pink-600'
+                              }`}
+                            />
+                            <span className={`text-[9px] font-bold mt-2 block ${isActive ? 'text-[var(--color-primary)]' : 'text-slate-400'}`}>
+                              {MONTH_NAMES[lang][m.month - 1].substring(0, 3)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="h-64 flex items-center justify-center text-slate-400 text-sm font-semibold">
+                      {t.reportNoData}
+                    </div>
+                  )}
+
+                  {hasData && (
+                    <p className="text-[11px] text-slate-400 font-semibold text-center">
+                      {t.reportSelectMonthHint}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div className="flex items-center justify-end pt-5 mt-5 border-t border-slate-100">
               <button
-                onClick={() => handleExport('pdf')}
-                className="p-4 border border-slate-200 hover:border-rose-500 hover:bg-rose-50/50 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition"
+                onClick={() => setShowReportModal(false)}
+                className="glass-btn-secondary text-sm font-bold"
               >
-                <span className="font-black text-lg text-rose-600">PDF</span>
-                <span className="text-xs font-bold text-slate-500">PDF Report Document</span>
+                {t.close}
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api';
+import api, { downloadBlob } from '../api';
 import MonthYearPicker from './MonthYearPicker';
 import {
   FolderOpen,
@@ -178,9 +178,11 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
   const handleExport = async (e, p, type) => {
     e.stopPropagation();
     try {
-      await api.get('/auth/me'); // refresh token if needed
-      const token = localStorage.getItem('accessToken');
-      window.open(`/api/export/${type}?month=${p.month}&year=${p.year}&Authorization=Bearer ${token}`);
+      const res = await api.get(`/export/${type}`, {
+        params: { month: p.month, year: p.year },
+        responseType: 'blob',
+      });
+      downloadBlob(res.data, `BudgetHub_${p.month}_${p.year}.${type}`);
     } catch (err) {
       console.error('Export failed:', err);
       alert(lang === 'TH' ? 'ไม่สามารถส่งออกไฟล์ได้' : 'Could not export file');

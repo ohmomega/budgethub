@@ -102,10 +102,13 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
-  // Open external links (e.g. target=_blank) in the system browser, not in-app.
+  // BudgetHub is a single-window app. Never spawn a second BrowserWindow:
+  // links to the local backend (e.g. file exports) must not pop open a blank
+  // window — they are handled in-page — and real external links open in the
+  // system browser instead.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://127.0.0.1') || url.startsWith('http://localhost')) {
-      return { action: 'allow' };
+      return { action: 'deny' };
     }
     shell.openExternal(url);
     return { action: 'deny' };

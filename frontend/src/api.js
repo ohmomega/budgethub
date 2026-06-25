@@ -63,4 +63,19 @@ api.interceptors.response.use(
   }
 );
 
+// Trigger a browser/Electron file download from an in-memory blob without
+// opening a new window. Using window.open() on a backend URL makes Electron
+// spawn a blank second window, so we fetch the file through axios (which also
+// injects the auth header) and save it via a temporary anchor element.
+export function downloadBlob(blob, filename) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export default api;

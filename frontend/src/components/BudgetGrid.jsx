@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import api from '../api';
+import api, { downloadBlob } from '../api';
 import { 
   ArrowLeft,
   Plus, 
@@ -98,6 +98,69 @@ const dict = {
     placeholderReason: 'Reason (if any)'
   }
 };
+
+// Format a number as a money string with thousands separators (e.g. 500,000.00).
+function formatMoney(value) {
+  const n = Number(value);
+  if (!isFinite(n)) return '';
+  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Amount cell: a formatted text input (not a number spinner).
+//  - shows the value with thousands separators while idle (500,000.00)
+//  - shows the raw editable number while focused, with everything selected
+//  - commits on ENTER (confirm) or on blur; ESC cancels and restores the value
+function AmountInput({ value, disabled, onCommit }) {
+  const [text, setText] = useState(formatMoney(value));
+  const [editing, setEditing] = useState(false);
+
+  // Keep the displayed value in sync when it changes from outside (e.g. reload),
+  // but never stomp on what the user is currently typing.
+  useEffect(() => {
+    if (!editing) setText(formatMoney(value));
+  }, [value, editing]);
+
+  const commit = (raw) => {
+    const parsed = parseFloat(String(raw).replace(/,/g, ''));
+    if (isNaN(parsed) || parsed < 0) {
+      setText(formatMoney(value)); // invalid -> restore previous value
+      return;
+    }
+    setText(formatMoney(parsed));
+    if (parsed !== Number(value)) onCommit(parsed);
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      disabled={disabled}
+      onFocus={(e) => {
+        setEditing(true);
+        setText(value == null ? '' : String(value));
+        // select after the raw value has been swapped in
+        requestAnimationFrame(() => e.target.select());
+      }}
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.target.blur(); // ENTER confirms the typed amount
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setText(value == null ? '' : String(value));
+          e.target.blur();
+        }
+      }}
+      onBlur={() => {
+        setEditing(false);
+        commit(text);
+      }}
+      className="bg-transparent w-full text-right text-slate-800 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 font-bold text-xs"
+    />
+  );
+}
 
 export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
   const [departments, setDepartments] = useState([]);
@@ -407,13 +470,14 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
 
   const handleExport = async (type) => {
     try {
-      // Ping the auth/me endpoint to auto-refresh the token if it has expired
-      await api.get('/auth/me');
-      const token = localStorage.getItem('accessToken');
-      window.open(`/api/export/${type}?month=${periodInfo.month}&year=${periodInfo.year}&Authorization=Bearer ${token}`);
+      const res = await api.get(`/export/${type}`, {
+        params: { month: periodInfo.month, year: periodInfo.year },
+        responseType: 'blob',
+      });
+      downloadBlob(res.data, `BudgetHub_${periodInfo.month}_${periodInfo.year}.${type}`);
     } catch (err) {
-      console.error('Refresh token failed before export:', err);
-      alert('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
+      console.error('Export failed:', err);
+      alert(lang === 'TH' ? 'ไม่สามารถสร้างรายงานได้' : 'Could not generate the report');
     }
   };
 
@@ -781,23 +845,10 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
 
                       {/* 5. Amount */}
                       <td className="grid-cell">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          defaultValue={entry.amount}
-                          onFocus={(e) => e.target.select()}
-                          onBlur={(e) => {
-                            const val = parseFloat(e.target.value);
-                            if (isNaN(val) || val < 0) {
-                              e.target.value = entry.amount;
-                              return;
-                            }
-                            e.target.value = val;
-                            handleCellBlur(entry, 'amount', val);
-                          }}
-                          className="bg-transparent w-full text-right text-slate-800 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 font-bold text-xs"
+                        <AmountInput
+                          value={entry.amount}
                           disabled={isReadOnly}
+                          onCommit={(val) => handleCellBlur(entry, 'amount', val)}
                         />
                       </td>
 

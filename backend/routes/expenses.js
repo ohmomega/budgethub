@@ -611,4 +611,60 @@ router.get('/dashboard', verifyToken, async (req, res) => {
   }
 });
 
+// @route   GET /api/dashboard/yearly
+// @desc    Per-month totals for every month of a year (for the dashboard report
+//          graph). Always returns all 12 months; months with no data read as 0.
+router.get('/dashboard/yearly', verifyToken, async (req, res) => {
+  const { year, department_id } = req.query;
+
+  let targetDeptId = req.user.role === 'editor' ? req.user.department_id : department_id;
+  if (targetDeptId === 'all' || targetDeptId === '') targetDeptId = null;
+
+  const targetYear = parseInt(year) || new Date().getFullYear();
+
+  try {
+    const monthsQuery = `
+      SELECT p.month,
+        COALESCE(SUM(e.total_amount), 0) AS total_amount,
+        COALESCE(SUM(e.amount), 0) AS amount_before_tax,
+        COALESCE(SUM(CASE WHEN e.is_budget_cut = true THEN e.total_amount ELSE 0 END), 0) AS budget_cut_total
+      FROM budget_periods p
+      LEFT JOIN expense_entries e
+        ON e.period_id = p.id AND e.is_deleted = false
+        AND ($2::uuid IS NULL OR e.department_id = $2)
+      WHERE p.year = $1
+      GROUP BY p.month
+    `;
+    const rows = (await db.query(monthsQuery, [targetYear, targetDeptId])).rows;
+
+    const byMonth = {};
+    for (const r of rows) {
+      byMonth[r.month] = {
+        totalAmount: parseFloat(r.total_amount),
+        amountBeforeTax: parseFloat(r.amount_before_tax),
+        budgetCutTotal: parseFloat(r.budget_cut_total)
+      };
+    }
+
+    const months = [];
+    let yearTotalAmount = 0;
+    let yearBudgetCutTotal = 0;
+    for (let m = 1; m <= 12; m++) {
+      const v = byMonth[m] || { totalAmount: 0, amountBeforeTax: 0, budgetCutTotal: 0 };
+      months.push({ month: m, ...v });
+      yearTotalAmount += v.totalAmount;
+      yearBudgetCutTotal += v.budgetCutTotal;
+    }
+
+    res.json({
+      year: targetYear,
+      months,
+      yearTotal: { totalAmount: yearTotalAmount, budgetCutTotal: yearBudgetCutTotal }
+    });
+  } catch (err) {
+    console.error('Fetch yearly dashboard error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
