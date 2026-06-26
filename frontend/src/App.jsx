@@ -311,9 +311,12 @@ export default function App() {
             {/* Log Out button hidden in single-user mode */}
           </div>
 
-          {/* Educational-use disclaimer */}
+          {/* Educational-use disclaimer + build version */}
           <p className="text-[9px] leading-snug text-slate-400 font-semibold text-center pt-1 border-t border-slate-100">
             {t.eduOnly}
+            <span className="block mt-1 text-slate-300 tracking-wide">
+              BudgetHub v{__APP_VERSION__}
+            </span>
           </p>
 
         </div>
