@@ -441,7 +441,9 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                   const netVal = m.totalAmount || 0;
                   const cutVal = m.amount || 0;
                   const netPct = Math.max((netVal / maxTrendAmount) * 80, netVal > 0 ? 3 : 0);
-                  const cutPct = Math.max((cutVal / maxTrendAmount) * 80, cutVal > 0 ? 3 : 0);
+                  // Floor the budget-cut bar at a clearly visible height so small
+                  // cuts don't collapse to a sliver next to the net-total bar.
+                  const cutPct = Math.max((cutVal / maxTrendAmount) * 80, cutVal > 0 ? 8 : 0);
                   const label = `${m.year}-${m.month < 10 ? '0' + m.month : m.month}`;
 
                   return (
