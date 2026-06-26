@@ -567,10 +567,11 @@ router.get('/dashboard', verifyToken, async (req, res) => {
       total_amount: parseFloat(row.total_amount)
     }));
 
-    // 4. Monthly Trend (last 6 periods, budget cuts)
+    // 4. Monthly Trend (last 6 periods): budget cuts + net grand total
     const trendQuery = `
       SELECT p.id, p.month, p.year, p.status,
-             COALESCE(SUM(CASE WHEN e.is_budget_cut = true THEN e.total_amount ELSE 0 END), 0) as budget_cut_amount
+             COALESCE(SUM(CASE WHEN e.is_budget_cut = true THEN e.total_amount ELSE 0 END), 0) as budget_cut_amount,
+             COALESCE(SUM(e.total_amount), 0) as net_total_amount
       FROM budget_periods p
       LEFT JOIN expense_entries e ON e.period_id = p.id AND e.is_deleted = false AND ($1::uuid IS NULL OR e.department_id = $1)
       GROUP BY p.id, p.year, p.month, p.status
@@ -582,7 +583,8 @@ router.get('/dashboard', verifyToken, async (req, res) => {
     const monthlyTrend = trendRes.rows.map(row => ({
       month: row.month,
       year: row.year,
-      amount: parseFloat(row.budget_cut_amount)
+      amount: parseFloat(row.budget_cut_amount),
+      totalAmount: parseFloat(row.net_total_amount)
     })).reverse();
 
     // 5. Latest budget sheets

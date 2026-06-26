@@ -306,8 +306,10 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
     latestSheets: []
   };
 
-  // Chart max value calculate
-  const maxTrendAmount = monthlyTrend.length > 0 ? Math.max(...monthlyTrend.map(m => m.amount), 1000) : 1000;
+  // Chart max value — scale to the larger of the two series (net total / cut)
+  const maxTrendAmount = monthlyTrend.length > 0
+    ? Math.max(...monthlyTrend.map(m => Math.max(m.amount || 0, m.totalAmount || 0)), 1000)
+    : 1000;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -436,22 +438,38 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
             <div className="h-60 w-full relative flex items-end justify-around border-b border-slate-100 pb-2">
               {monthlyTrend.length > 0 ? (
                 monthlyTrend.map((m, idx) => {
-                  const percentage = (m.amount / maxTrendAmount) * 80; // capped at 80% height
+                  const netVal = m.totalAmount || 0;
+                  const cutVal = m.amount || 0;
+                  const netPct = Math.max((netVal / maxTrendAmount) * 80, netVal > 0 ? 3 : 0);
+                  const cutPct = Math.max((cutVal / maxTrendAmount) * 80, cutVal > 0 ? 3 : 0);
                   const label = `${m.year}-${m.month < 10 ? '0' + m.month : m.month}`;
-                  
+
                   return (
-                    <div key={idx} className="h-full flex flex-col justify-end items-center group w-1/6 relative">
-                      {/* Tooltip on Hover */}
-                      <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] font-bold py-1 px-2 rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 shadow pointer-events-none whitespace-nowrap">
-                        ฿{m.amount.toLocaleString()}
+                    <div key={idx} className="h-full flex flex-col items-center group w-1/6 relative">
+                      {/* Tooltip on Hover (net total + budget cut) */}
+                      <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 shadow pointer-events-none whitespace-nowrap space-y-1 z-10">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full inline-block bg-[var(--color-primary)]" />
+                          <span>{t.statTotal}: ฿{netVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full inline-block bg-pink-400" />
+                          <span>{t.statBudgetCut}: ฿{cutVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
                       </div>
-                      
-                      {/* Bar Graphic */}
-                      <div 
-                        style={{ height: `${Math.max(percentage, 5)}%` }}
-                        className="w-12 bg-gradient-to-t from-rose-400 to-pink-500 rounded-t-lg shadow-sm transition-all duration-300 group-hover:from-rose-500 group-hover:to-pink-600"
-                      />
-                      
+
+                      {/* Twin bars: net grand total (teal) + budget cut (pink) */}
+                      <div className="flex-1 w-full flex items-end justify-center gap-1.5">
+                        <div
+                          style={{ height: `${netPct}%` }}
+                          className="w-5 bg-gradient-to-t from-teal-400 to-[var(--color-primary)] rounded-t-lg shadow-sm transition-all duration-300"
+                        />
+                        <div
+                          style={{ height: `${cutPct}%` }}
+                          className="w-5 bg-gradient-to-t from-rose-400 to-pink-500 rounded-t-lg shadow-sm transition-all duration-300 group-hover:from-rose-500 group-hover:to-pink-600"
+                        />
+                      </div>
+
                       {/* X-axis Label */}
                       <span className="text-[10px] font-bold text-slate-400 mt-2 block">
                         {label}
@@ -465,9 +483,15 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
             </div>
 
             {/* Chart Legend */}
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 bg-pink-500 rounded-full inline-block" />
-              <span className="text-xs font-semibold text-slate-600">{t.statBudgetCut}</span>
+            <div className="flex items-center gap-5">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full inline-block bg-[var(--color-primary)]" />
+                <span className="text-xs font-semibold text-slate-600">{t.statTotal}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 bg-pink-500 rounded-full inline-block" />
+                <span className="text-xs font-semibold text-slate-600">{t.statBudgetCut}</span>
+              </div>
             </div>
 
           </div>
