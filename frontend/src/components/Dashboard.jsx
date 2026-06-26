@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Loader2,
   Calendar,
-  Database,
   FileText,
   FileSpreadsheet,
   Image as ImageIcon,
@@ -63,11 +62,7 @@ const dict = {
     submit: 'สร้างแผ่นงาน',
     deptFilterLabel: 'แผนกที่กรอง:',
     allDepts: 'ทุกแผนก (รวม)',
-    emptyState: 'ยังไม่มีข้อมูลแผ่นงบประมาณ กดปุ่มเพื่อเริ่มสร้างแผ่นงานใหม่ หรือโหลดข้อมูลตัวอย่างเพื่อทดลองใช้งาน',
-    loadSample: 'โหลดข้อมูลตัวอย่าง',
-    loadingSample: 'กำลังโหลดข้อมูลตัวอย่าง...',
-    loadSampleDone: 'โหลดข้อมูลตัวอย่างสำเร็จ',
-    loadSampleSkipped: 'มีข้อมูลตัวอย่างอยู่แล้ว'
+    emptyState: 'ยังไม่มีข้อมูลแผ่นงบประมาณ กดปุ่ม "สร้างแผ่นใหม่" เพื่อเริ่มต้นใช้งาน'
   },
   EN: {
     title: 'Dashboard',
@@ -104,11 +99,7 @@ const dict = {
     submit: 'Create Sheet',
     deptFilterLabel: 'Filter Department:',
     allDepts: 'All Departments (Consolidated)',
-    emptyState: 'No budget sheets yet. Click to create a new sheet, or load sample data to explore the app.',
-    loadSample: 'Load Sample Data',
-    loadingSample: 'Loading sample data...',
-    loadSampleDone: 'Sample data loaded successfully',
-    loadSampleSkipped: 'Sample data already exists'
+    emptyState: 'No budget sheets yet. Click "Create New Sheet" to get started.'
   }
 };
 
@@ -128,7 +119,6 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
   const [departments, setDepartments] = useState([]);
   const [selectedDeptId, setSelectedDeptId] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [loadingSample, setLoadingSample] = useState(false);
 
   // Report graph modal state
   const [showReportModal, setShowReportModal] = useState(false);
@@ -186,26 +176,6 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
     } catch (err) {
       console.error(err);
       alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการสร้างแผ่นงาน');
-    }
-  };
-
-  const handleLoadSampleData = async () => {
-    if (loadingSample) return;
-    setLoadingSample(true);
-    try {
-      const res = await api.post('/sample-data');
-      // Refresh departments + dashboard so the new data shows immediately.
-      try {
-        const deptRes = await api.get('/departments');
-        setDepartments(deptRes.data);
-      } catch (_e) { /* ignore */ }
-      await fetchDashboardData();
-      alert(res.data?.skipped ? t.loadSampleSkipped : t.loadSampleDone);
-    } catch (err) {
-      console.error('Load sample data failed:', err);
-      alert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถโหลดข้อมูลตัวอย่างได้' : 'Could not load sample data'));
-    } finally {
-      setLoadingSample(false);
     }
   };
 
@@ -444,18 +414,8 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-500 space-y-5">
+        <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-500">
           <p className="text-sm">{t.emptyState}</p>
-          {user.role === 'admin' && (
-            <button
-              onClick={handleLoadSampleData}
-              disabled={loadingSample}
-              className="glass-btn-secondary py-2.5 mx-auto disabled:opacity-60"
-            >
-              {loadingSample ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <Database className="h-4.5 w-4.5" />}
-              <span>{loadingSample ? t.loadingSample : t.loadSample}</span>
-            </button>
-          )}
         </div>
       )}
 

@@ -51,10 +51,6 @@
       {
         "from": "frontend/dist",
         "to": "dist"
-      },
-      {
-        "from": "Example",
-        "to": "Example"
       }
     ],
     "win": {

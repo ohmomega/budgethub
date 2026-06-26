@@ -21,37 +21,26 @@ if (!gotLock) {
 let mainWindow = null;
 let serverInfo = null;
 
-// In a packaged build, frontend/dist and Example are copied to resources via
-// electron-builder's extraResources. In development they sit in the repo.
+// In a packaged build, frontend/dist is copied to resources via
+// electron-builder's extraResources. In development it sits in the repo.
 function getPaths() {
   if (app.isPackaged) {
-    const res = process.resourcesPath;
-    return {
-      distDir: path.join(res, 'dist'),
-      excelPath: path.join(res, 'Example', 'test.xlsx'),
-    };
+    return { distDir: path.join(process.resourcesPath, 'dist') };
   }
-  const root = path.join(__dirname, '..');
-  return {
-    distDir: path.join(root, 'frontend', 'dist'),
-    excelPath: path.join(root, 'Example', 'test.xlsx'),
-  };
+  return { distDir: path.join(__dirname, '..', 'frontend', 'dist') };
 }
 
 async function bootstrap() {
   const dbPath = path.join(app.getPath('userData'), 'budgethub.db');
   process.env.BUDGETHUB_DB_PATH = dbPath;
 
-  const { distDir, excelPath } = getPaths();
+  const { distDir } = getPaths();
 
-  // Let the backend (in-app "Load sample data") find the bundled Example file.
-  process.env.BUDGETHUB_EXAMPLE_PATH = excelPath;
-
-  // First-run: create and seed the database.
+  // First-run: create and seed the database (empty — admin account only).
   if (!fs.existsSync(dbPath)) {
     try {
       const { seedDatabase } = require('../backend/seed');
-      await seedDatabase({ dbPath, excelPath });
+      await seedDatabase({ dbPath });
     } catch (err) {
       dialog.showErrorBox(
         'BudgetHub — Database setup failed',

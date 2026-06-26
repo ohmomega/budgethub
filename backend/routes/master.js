@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { importSampleData } = require('../sampleData');
 const { verifyToken, isAdmin, isEditorOrAdmin } = require('../middleware/auth');
 
 // =========================================================================
@@ -124,39 +123,6 @@ router.delete('/departments/:id', verifyToken, isAdmin, async (req, res) => {
   } catch (err) {
     console.error('Delete department error:', err);
     res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// =========================================================================
-// SAMPLE DATA
-// =========================================================================
-
-// @route   GET /api/sample-data/status
-// @desc    Report whether the database currently has any data (used to decide
-//          whether to offer the "Load sample data" button).
-router.get('/sample-data/status', verifyToken, async (req, res) => {
-  try {
-    const deptRes = await db.query('SELECT COUNT(*) AS n FROM departments');
-    const periodRes = await db.query('SELECT COUNT(*) AS n FROM budget_periods');
-    const isEmpty =
-      parseInt(deptRes.rows[0].n, 10) === 0 &&
-      parseInt(periodRes.rows[0].n, 10) === 0;
-    res.json({ isEmpty });
-  } catch (err) {
-    console.error('Sample-data status error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// @route   POST /api/sample-data
-// @desc    Load the educational sample dataset into the live database (Admin).
-router.post('/sample-data', verifyToken, isAdmin, async (req, res) => {
-  try {
-    const result = await importSampleData();
-    res.status(201).json(result);
-  } catch (err) {
-    console.error('Load sample data error:', err);
-    res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
