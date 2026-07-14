@@ -22,25 +22,47 @@ router.get('/departments', verifyToken, async (req, res) => {
   }
 });
 
+// Generate a short, unique department code. Departments are identified by name
+// in the UI now, but the column is still UNIQUE NOT NULL in the schema, so we
+// mint a value here. Retries a few times in the (near-impossible for an offline
+// single-user app) event of a collision.
+async function generateDeptCode() {
+  for (let i = 0; i < 20; i++) {
+    const candidate = 'D' + Date.now().toString(36).toUpperCase().slice(-4) +
+      Math.floor(Math.random() * 900 + 100);
+    const exists = await db.query('SELECT id FROM departments WHERE dept_code = $1', [candidate]);
+    if (exists.rows.length === 0) return candidate;
+  }
+  // Extremely unlikely fallback.
+  return 'D' + Date.now().toString(36).toUpperCase();
+}
+
 // @route   POST /api/departments
-// @desc    Create a new department (Admin only)
+// @desc    Create a new department (Admin only). dept_code is auto-generated;
+//          the UI only collects a name.
 router.post('/departments', verifyToken, isAdmin, async (req, res) => {
   const { dept_code, dept_name } = req.body;
 
-  if (!dept_code || !dept_name) {
-    return res.status(400).json({ error: 'dept_code and dept_name are required' });
+  if (!dept_name || !dept_name.trim()) {
+    return res.status(400).json({ error: 'dept_name is required' });
   }
 
   try {
-    // Check if code exists
-    const deptExists = await db.query('SELECT id FROM departments WHERE dept_code = $1', [dept_code.trim()]);
-    if (deptExists.rows.length > 0) {
-      return res.status(400).json({ error: 'Department code already exists' });
+    // Honour an explicit code if one is supplied (legacy callers); otherwise
+    // auto-generate a unique one.
+    let code = dept_code && dept_code.trim() ? dept_code.trim() : null;
+    if (code) {
+      const deptExists = await db.query('SELECT id FROM departments WHERE dept_code = $1', [code]);
+      if (deptExists.rows.length > 0) {
+        return res.status(400).json({ error: 'Department code already exists' });
+      }
+    } else {
+      code = await generateDeptCode();
     }
 
     const result = await db.query(
       'INSERT INTO departments (dept_code, dept_name) VALUES ($1, $2) RETURNING *',
-      [dept_code.trim(), dept_name.trim()]
+      [code, dept_name.trim()]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -89,32 +111,36 @@ router.patch('/departments/:id', verifyToken, isAdmin, async (req, res) => {
 });
 
 // @route   DELETE /api/departments/:id
-// @desc    Delete a department (Admin only). If it already has budget entries
-//          it is deactivated instead of removed, to protect historical data.
+// @desc    Delete a department (Admin only). A department that still has budget
+//          data cannot be deleted — the caller must remove that data first
+//          (delete the month's rows, or delete the whole sheet). Once no live
+//          data references it, it is permanently removed.
 router.delete('/departments/:id', verifyToken, isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
+    // Count only entries that are still present (soft-deleted rows and deleted
+    // sheets don't count, so clearing a month's data frees the department).
     const entriesRes = await db.query(
-      'SELECT COUNT(*) AS n FROM expense_entries WHERE department_id = $1',
+      'SELECT COUNT(*) AS n FROM expense_entries WHERE department_id = $1 AND is_deleted = false',
       [id]
     );
     if (parseInt(entriesRes.rows[0].n, 10) > 0) {
-      const result = await db.query(
-        'UPDATE departments SET is_active = false WHERE id = $1 RETURNING *',
-        [id]
-      );
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Department not found' });
-      }
-      return res.json({
-        message: 'Department has budget data and was deactivated instead of deleted.',
-        deactivated: true,
-        id,
+      return res.status(400).json({
+        error: 'Cannot delete: this department still has budget data.',
+        code: 'HAS_DATA',
       });
     }
 
-    // No budget entries: detach any cost centers then hard-delete.
+    // No live data. Purge any leftover soft-deleted rows (and their audit logs)
+    // so the foreign key is clear, detach references, then hard-delete.
+    await db.query(
+      'DELETE FROM audit_logs WHERE entry_id IN (SELECT id FROM expense_entries WHERE department_id = $1)',
+      [id]
+    );
+    await db.query('DELETE FROM expense_entries WHERE department_id = $1', [id]);
     await db.query('UPDATE cost_centers SET department_id = NULL WHERE department_id = $1', [id]);
+    await db.query('UPDATE users SET department_id = NULL WHERE department_id = $1', [id]);
+
     const result = await db.query('DELETE FROM departments WHERE id = $1 RETURNING *', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Department not found' });
@@ -213,13 +239,34 @@ router.post('/cost-centers', verifyToken, isEditorOrAdmin, async (req, res) => {
 // @desc    Update a cost center (Admin only)
 router.patch('/cost-centers/:id', verifyToken, isAdmin, async (req, res) => {
   const { id } = req.params;
-  const { cc_name, department_id, is_active } = req.body;
+  const { cc_code, cc_name, department_id, is_active } = req.body;
 
   try {
+    // The code can now be changed after creation. Entries reference the cost
+    // center by id (not by code), so renaming the code is safe as long as it
+    // stays unique.
+    if (cc_code !== undefined) {
+      const code = (cc_code || '').trim();
+      if (!code) {
+        return res.status(400).json({ error: 'cc_code cannot be empty' });
+      }
+      const clash = await db.query(
+        'SELECT id FROM cost_centers WHERE cc_code = $1 AND id <> $2',
+        [code, id]
+      );
+      if (clash.rows.length > 0) {
+        return res.status(400).json({ error: 'Cost center code already exists' });
+      }
+    }
+
     let query = 'UPDATE cost_centers SET ';
     const params = [];
     let paramIndex = 1;
 
+    if (cc_code !== undefined) {
+      query += `cc_code = $${paramIndex++}, `;
+      params.push(cc_code.trim());
+    }
     if (cc_name !== undefined) {
       query += `cc_name = $${paramIndex++}, `;
       params.push(cc_name.trim());

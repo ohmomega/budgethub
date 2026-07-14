@@ -675,26 +675,40 @@ router.get('/yearly-pdf', verifyToken, async (req, res) => {
       .text(`ยอดรวมทั้งปี: ${yearTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท`, { align: 'center' });
     doc.moveDown(1);
 
-    // Bar chart
+    // Colours for the two series
+    const netColor = '#0D9488';   // net total (teal)
+    const cutColor = '#EC4899';   // budget cut (pink)
+
+    // Legend
+    const legendY = doc.y;
+    doc.rect(60, legendY, 10, 10).fill(netColor);
+    doc.fillColor('#333333').font('ThaiRegular').fontSize(10).text('ยอดรวมสุทธิ', 75, legendY);
+    doc.rect(190, legendY, 10, 10).fill(cutColor);
+    doc.fillColor('#333333').font('ThaiRegular').fontSize(10).text('งบทำการที่ตัด', 205, legendY);
+    doc.y = legendY + 24;
+
+    // Bar chart (twin bars per month: net total + budget cut)
     const chartX = 60;
     const chartW = 475;
     const chartTop = doc.y;
     const chartH = 180;
     const baseY = chartTop + chartH;
-    const maxAmt = Math.max(...months.map(m => m.totalAmount), 1);
+    const maxAmt = Math.max(...months.map(m => Math.max(m.totalAmount, m.budgetCutTotal)), 1);
     const slot = chartW / 12;
 
     doc.lineWidth(0.5).strokeColor('#CCCCCC')
       .moveTo(chartX, baseY).lineTo(chartX + chartW, baseY).stroke();
 
     months.forEach((m, i) => {
-      const bw = slot * 0.6;
-      const x = chartX + slot * i + (slot - bw) / 2;
-      const h = (m.totalAmount / maxAmt) * chartH;
-      const y = baseY - h;
-      if (m.totalAmount > 0) doc.rect(x, y, bw, h).fill('#EC4899');
+      const groupW = slot * 0.6;
+      const barW = (groupW - 3) / 2;
+      const gx = chartX + slot * i + (slot - groupW) / 2;
+      const netH = (m.totalAmount / maxAmt) * chartH;
+      const cutH = (m.budgetCutTotal / maxAmt) * chartH;
+      if (m.totalAmount > 0) doc.rect(gx, baseY - netH, barW, netH).fill(netColor);
+      if (m.budgetCutTotal > 0) doc.rect(gx + barW + 3, baseY - cutH, barW, cutH).fill(cutColor);
       doc.fillColor('#666666').font('ThaiRegular').fontSize(7)
-        .text(THAI_MONTHS[m.month].substring(0, 3), x - 4, baseY + 4, { width: bw + 8, align: 'center' });
+        .text(THAI_MONTHS[m.month].substring(0, 3), gx - 4, baseY + 4, { width: groupW + 8, align: 'center' });
     });
 
     // Table

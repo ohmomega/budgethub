@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
-import { 
-  Plus, 
-  Search, 
-  Edit3, 
-  Trash2, 
-  Check, 
-  AlertCircle, 
+import {
+  Plus,
+  Search,
+  Edit3,
+  Trash2,
+  Check,
+  AlertCircle,
   X,
   Loader2
 } from 'lucide-react';
@@ -70,10 +70,9 @@ const dict = {
 
 export default function CostCentersList({ user, lang }) {
   const [costCenters, setCostCenters] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  
+
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [ccToDelete, setCcToDelete] = useState(null);
@@ -82,7 +81,6 @@ export default function CostCentersList({ user, lang }) {
     cc_code: '',
     cc_name: '',
     cc_desc: '',
-    department_id: '',
     is_active: true
   });
 
@@ -100,18 +98,8 @@ export default function CostCentersList({ user, lang }) {
     }
   };
 
-  const fetchDepts = async () => {
-    try {
-      const res = await api.get('/departments');
-      setDepartments(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   useEffect(() => {
     fetchCostCenters();
-    fetchDepts();
   }, []);
 
   const handleOpenCreate = () => {
@@ -120,7 +108,6 @@ export default function CostCentersList({ user, lang }) {
       cc_code: '',
       cc_name: '',
       cc_desc: '',
-      department_id: '',
       is_active: true
     });
     setShowModal(true);
@@ -132,7 +119,6 @@ export default function CostCentersList({ user, lang }) {
       cc_code: cc.cc_code,
       cc_name: cc.cc_name,
       cc_desc: cc.cc_desc || '',
-      department_id: cc.department_id || '',
       is_active: cc.is_active
     });
     setShowModal(true);
@@ -144,10 +130,11 @@ export default function CostCentersList({ user, lang }) {
 
     try {
       if (editingCc) {
-        // Edit mode (Admin only)
+        // Edit mode (Admin only). Cost centers are global (all departments).
+        // The code is now editable after creation.
         const payload = {
+          cc_code: ccForm.cc_code.trim(),
           cc_name: ccForm.cc_name,
-          department_id: ccForm.department_id || null,
           is_active: ccForm.is_active
         };
         await api.patch(`/cost-centers/${editingCc.id}`, payload);
@@ -155,8 +142,7 @@ export default function CostCentersList({ user, lang }) {
         // Create mode (Admin/Editor)
         const payload = {
           cc_code: ccForm.cc_code.trim(),
-          cc_name: ccForm.cc_name.trim(),
-          department_id: ccForm.department_id || null
+          cc_name: ccForm.cc_name.trim()
         };
         await api.post('/cost-centers', payload);
       }
@@ -192,10 +178,9 @@ export default function CostCentersList({ user, lang }) {
     }
   };
 
-  const filteredCc = costCenters.filter(cc => 
+  const filteredCc = costCenters.filter(cc =>
     cc.cc_code.toLowerCase().includes(search.toLowerCase()) ||
-    (cc.cc_name && cc.cc_name.toLowerCase().includes(search.toLowerCase())) ||
-    (cc.dept_name && cc.dept_name.toLowerCase().includes(search.toLowerCase()))
+    (cc.cc_name && cc.cc_name.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -271,11 +256,6 @@ export default function CostCentersList({ user, lang }) {
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-800">
                       {cc.cc_name}
-                      {cc.dept_name && (
-                        <div className="text-[10px] text-slate-400 font-medium block mt-0.5 font-sans">
-                          {cc.dept_name} {cc.dept_code ? `(${cc.dept_code})` : ''}
-                        </div>
-                      )}
                     </td>
                     <td className="px-6 py-4 text-slate-400 max-w-[240px] truncate" title={cc.cc_desc}>
                       {cc.cc_desc || '-'}
@@ -354,8 +334,7 @@ export default function CostCentersList({ user, lang }) {
                   value={ccForm.cc_code}
                   onChange={(e) => setCcForm(prev => ({ ...prev, cc_code: e.target.value }))}
                   className="glass-input w-full text-sm font-semibold"
-                  placeholder="เช่น H307101030"
-                  disabled={!!editingCc} // Code cannot be edited once created
+                  placeholder="1234567890"
                   required
                 />
               </div>
@@ -370,31 +349,10 @@ export default function CostCentersList({ user, lang }) {
                   value={ccForm.cc_name}
                   onChange={(e) => setCcForm(prev => ({ ...prev, cc_name: e.target.value }))}
                   className="glass-input w-full text-sm font-semibold"
-                  placeholder="เช่น Operations & Facilities"
+                  placeholder={lang === 'TH' ? 'เช่น บัญชี' : 'e.g. Accounting'}
                   required
                 />
               </div>
-
-              {/* Scoped Department Selector */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                  {t.fieldDept}
-                </label>
-                <select
-                  value={ccForm.department_id || ''}
-                  onChange={(e) => setCcForm(prev => ({ ...prev, department_id: e.target.value }))}
-                  className="glass-input w-full text-sm font-semibold cursor-pointer"
-                >
-                  <option value="">{lang === 'TH' ? 'ทุกแผนก (ใช้ได้ทุกแผนก)' : 'All Departments (Global)'}</option>
-                  {departments.map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.dept_name} ({d.dept_code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-
 
               {/* Status Selector (Admin only edit) */}
               {editingCc && (

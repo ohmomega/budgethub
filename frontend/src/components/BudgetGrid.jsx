@@ -13,11 +13,15 @@ import {
   Search, 
   FileSpreadsheet, 
   FileText, 
-  ChevronDown, 
+  ChevronDown,
   Loader2,
   Lock,
+  Unlock,
   Edit2,
-  X
+  Edit3,
+  X,
+  Building2,
+  Settings2
 } from 'lucide-react';
 
 const THAI_MONTH_NAMES = [
@@ -40,6 +44,9 @@ const dict = {
     exportExcel: 'ส่งออก Excel',
     finalize: 'ยืนยันแผ่นงาน',
     finalized: 'ยืนยันแล้ว',
+    reopen: 'ยกเลิกการยืนยัน',
+    addDept: 'เพิ่มแผนก',
+    manageDept: 'จัดการแผนก (แก้ไข/ลบ)',
     summaryTitle: 'สรุปตามศูนย์ต้นทุน',
     beforeTax: 'ก่อนภาษี:',
     tax: 'ภาษี (7%):',
@@ -73,6 +80,9 @@ const dict = {
     exportExcel: 'Export Excel',
     finalize: 'Finalize Sheet',
     finalized: 'Finalized',
+    reopen: 'Reopen',
+    addDept: 'Add Department',
+    manageDept: 'Manage Departments (edit/delete)',
     summaryTitle: 'Summary by Cost Center',
     beforeTax: 'Pre-Tax:',
     tax: 'VAT (7%):',
@@ -162,8 +172,9 @@ function AmountInput({ value, disabled, onCommit }) {
   );
 }
 
-export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
+export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate }) {
   const [departments, setDepartments] = useState([]);
+  const [deptsLoaded, setDeptsLoaded] = useState(false);
   const [selectedDeptId, setSelectedDeptId] = useState('');
   const [costCenters, setCostCenters] = useState([]);
   const [entries, setEntries] = useState([]);
@@ -180,6 +191,13 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
 
   const [rowToDelete, setRowToDelete] = useState(null);
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+  const [showReopenConfirm, setShowReopenConfirm] = useState(false);
+
+  // Departments are added / edited / deleted from inside the sheet now.
+  const [showAddDept, setShowAddDept] = useState(false);
+  const [newDeptName, setNewDeptName] = useState('');
+  const [savingDept, setSavingDept] = useState(false);
+  const [showManageDept, setShowManageDept] = useState(false);
 
   // Drag and drop states
   const [draggedIndex, setDraggedIndex] = useState(null);
@@ -203,6 +221,8 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
       } catch (err) {
         console.error('Fetch departments failed:', err);
         setErrorMsg('ไม่สามารถโหลดข้อมูลแผนกได้');
+      } finally {
+        setDeptsLoaded(true);
       }
     };
     fetchDepts();
@@ -245,6 +265,20 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
   useEffect(() => {
     fetchEntries();
   }, [selectedDeptId, periodInfo]);
+
+  // Text cells commit on blur; pressing Enter confirms the edit (by blurring),
+  // and Escape cancels by restoring the original value. This matches the amount
+  // cell's behaviour so the whole row edits consistently from the keyboard.
+  const handleCellKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.target.blur();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.target.value = e.target.defaultValue;
+      e.target.blur();
+    }
+  };
 
   // Handle cell edit save (blur)
   const handleCellBlur = async (entry, field, value) => {
@@ -462,10 +496,61 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
     }
   };
 
+  // Reload the department list, keeping a sensible selection. If `preferId` is
+  // given it is selected; otherwise the current selection is kept when it still
+  // exists, else the first department (or none) is chosen.
+  const reloadDepartments = async (preferId) => {
+    try {
+      const res = await api.get('/departments');
+      setDepartments(res.data);
+      setSelectedDeptId(prev => {
+        if (preferId) return preferId;
+        if (res.data.some(d => d.id === prev)) return prev;
+        return res.data.length > 0 ? res.data[0].id : '';
+      });
+      setDeptsLoaded(true);
+      return res.data;
+    } catch (err) {
+      console.error('Reload departments failed:', err);
+      return departments;
+    }
+  };
+
+  // Create a department without leaving the sheet, then select it.
+  const handleCreateDept = async () => {
+    const name = newDeptName.trim();
+    if (!name) return;
+    setSavingDept(true);
+    try {
+      const res = await api.post('/departments', { dept_name: name });
+      await reloadDepartments(res.data.id);
+      setShowAddDept(false);
+      setNewDeptName('');
+    } catch (err) {
+      console.error('Create department failed:', err);
+      alert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถเพิ่มแผนกได้' : 'Could not add department'));
+    } finally {
+      setSavingDept(false);
+    }
+  };
+
   // Finalize Sheet
   const handleFinalize = async () => {
     if (user.role !== 'admin') return;
     setShowFinalizeConfirm(true);
+  };
+
+  // Reopen (un-finalize) a confirmed sheet so it can be edited again.
+  const handleReopen = async () => {
+    if (user.role !== 'admin' || !period) return;
+    try {
+      await api.patch(`/periods/${period.id}`, { status: 'open' });
+      setPeriod(prev => ({ ...prev, status: 'open' }));
+      setShowReopenConfirm(false);
+    } catch (err) {
+      console.error('Reopen sheet failed:', err);
+      alert(lang === 'TH' ? 'ไม่สามารถยกเลิกการยืนยันได้' : 'Could not reopen the sheet');
+    }
   };
 
   const handleExport = async (type) => {
@@ -558,9 +643,61 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
     );
   });
 
+  // Guard: a budget sheet needs at least one department to hold its entries.
+  // Without this, "Add Row" silently no-ops and the grid looks frozen, so we
+  // guide the user to create a department first instead of showing a dead grid.
+  if (deptsLoaded && departments.length === 0) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <button
+          onClick={onBack}
+          className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl cursor-pointer transition select-none inline-flex items-center gap-1 text-xs font-bold"
+        >
+          <ArrowLeft className="h-4.5 w-4.5" />
+          <span>{t.backBtn}</span>
+        </button>
+
+        <div className="bg-white border border-slate-200 rounded-3xl p-10 md:p-12 shadow-sm text-center max-w-xl mx-auto space-y-5">
+          <div className="mx-auto w-16 h-16 bg-[var(--color-primary-bg-light)] rounded-2xl flex items-center justify-center text-[var(--color-primary)]">
+            <Building2 className="h-8 w-8" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-extrabold text-slate-900">
+              {lang === 'TH' ? 'เริ่มต้นด้วยการเพิ่มแผนก' : 'Start by adding a department'}
+            </h3>
+            <p className="text-sm text-slate-500 font-medium leading-relaxed">
+              {lang === 'TH'
+                ? 'พิมพ์ชื่อแผนกแล้วกดเพิ่ม เพื่อเริ่มกรอกข้อมูลงบประมาณของแผนกนั้นได้ทันที'
+                : 'Type a department name and add it to start entering this department’s budget right away.'}
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-1 max-w-md mx-auto">
+            <input
+              type="text"
+              value={newDeptName}
+              onChange={(e) => setNewDeptName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateDept(); } }}
+              placeholder={lang === 'TH' ? 'เช่น บัญชี' : 'e.g. Accounting'}
+              className="glass-input w-full text-sm font-semibold"
+              autoFocus
+            />
+            <button
+              onClick={handleCreateDept}
+              disabled={savingDept || !newDeptName.trim()}
+              className="glass-btn-primary text-sm font-bold w-full sm:w-auto shrink-0 disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              <span>{t.addDept}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-      
+
       {/* 1. Header Bar */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-5 border border-slate-200 rounded-3xl shadow-sm">
         <div className="flex items-center gap-4">
@@ -618,17 +755,38 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
 
         {/* Header Actions */}
         <div className="flex items-center gap-2.5">
-          {/* Department switcher (Admin / Viewer only) */}
+          {/* Department switcher + inline add (departments live in the sheet) */}
           {(user.role === 'admin' || user.role === 'viewer') && (
-            <select
-              value={selectedDeptId}
-              onChange={(e) => setSelectedDeptId(e.target.value)}
-              className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
-            >
-              {departments.map(d => (
-                <option key={d.id} value={d.id}>{d.dept_name}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={selectedDeptId}
+                onChange={(e) => setSelectedDeptId(e.target.value)}
+                className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
+              >
+                {departments.map(d => (
+                  <option key={d.id} value={d.id}>{d.dept_name}</option>
+                ))}
+              </select>
+              {user.role !== 'viewer' && (
+                <>
+                  <button
+                    onClick={() => { setNewDeptName(''); setShowAddDept(true); }}
+                    className="p-2.5 bg-slate-50 hover:bg-[var(--color-primary-bg-light)] hover:text-[var(--color-primary)] border border-slate-200 rounded-xl cursor-pointer transition"
+                    title={t.addDept}
+                  >
+                    <Building2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setShowManageDept(true)}
+                    disabled={departments.length === 0}
+                    className="p-2.5 bg-slate-50 hover:bg-[var(--color-primary-bg-light)] hover:text-[var(--color-primary)] border border-slate-200 rounded-xl cursor-pointer transition disabled:opacity-40 disabled:cursor-default"
+                    title={t.manageDept}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
           )}
 
           <button
@@ -654,6 +812,17 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
             >
               <Lock className="h-4 w-4" />
               <span>{t.finalize}</span>
+            </button>
+          )}
+
+          {/* Reopen (un-finalize) a confirmed sheet to edit it again */}
+          {user.role === 'admin' && period && period.status === 'closed' && (
+            <button
+              onClick={() => setShowReopenConfirm(true)}
+              className="px-4 py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-xs font-bold rounded-xl cursor-pointer transition select-none flex items-center gap-1.5"
+            >
+              <Unlock className="h-4 w-4" />
+              <span>{t.reopen}</span>
             </button>
           )}
         </div>
@@ -711,7 +880,10 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/10">
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <span className="font-extrabold text-slate-800 text-sm shrink-0">
-              {dict[lang].colItem} ({departments.find(d => d.id === selectedDeptId)?.dept_code || ''})
+              {dict[lang].colItem}
+              {departments.find(d => d.id === selectedDeptId)?.dept_name
+                ? ` • ${departments.find(d => d.id === selectedDeptId).dept_name}`
+                : ''}
             </span>
             
             {/* Search Input field */}
@@ -756,22 +928,22 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
           )}
         </div>
 
-        {/* Table Element */}
-        <div className="overflow-x-auto w-full min-h-[320px]">
-          <table className="w-full min-w-[1300px] table-fixed border-collapse">
+        {/* Table Element — fits the container (no horizontal scrollbar). */}
+        <div className="w-full min-h-[320px]">
+          <table className="w-full table-fixed border-collapse">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-200">
-                <th className="grid-header w-[3%]">{t.colNo}</th>
-                <th className="grid-header w-[12%]">{t.colAccount}</th>
+                <th className="grid-header w-[4%]">{t.colNo}</th>
+                <th className="grid-header w-[11%]">{t.colAccount}</th>
                 <th className="grid-header w-[12%]">{t.colCostCenter}</th>
-                <th className="grid-header w-[20%]">{t.colItem}</th>
+                <th className="grid-header w-[19%]">{t.colItem}</th>
                 <th className="grid-header w-[9%]">{t.colAmount}</th>
                 <th className="grid-header w-[7%]">{t.colTax}</th>
                 <th className="grid-header w-[9%]">{t.colTotal}</th>
-                <th className="grid-header w-[13%]">{t.colReason}</th>
-                <th className="grid-header w-[7%]">{t.colDeduct}</th>
-                <th className="grid-header w-[8%]">{t.colType}</th>
-                {!isReadOnly && <th className="grid-header w-[10%]">{t.colAction}</th>}
+                <th className="grid-header w-[11%]">{t.colReason}</th>
+                <th className="grid-header w-[6%]">{t.colDeduct}</th>
+                <th className="grid-header w-[6%]">{t.colType}</th>
+                {!isReadOnly && <th className="grid-header w-[9%]">{t.colAction}</th>}
               </tr>
             </thead>
             <tbody>
@@ -812,6 +984,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
                           type="text"
                           defaultValue={entry.account_code || ''}
                           onBlur={(e) => handleCellBlur(entry, 'account_code', e.target.value)}
+                          onKeyDown={handleCellKeyDown}
                           className="bg-transparent w-full text-slate-800 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 text-xs font-semibold"
                           disabled={isReadOnly}
                         />
@@ -838,6 +1011,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
                           type="text"
                           defaultValue={entry.item_name || ''}
                           onBlur={(e) => handleCellBlur(entry, 'item_name', e.target.value)}
+                          onKeyDown={handleCellKeyDown}
                           className="bg-transparent w-full text-slate-800 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 text-xs font-bold truncate"
                           disabled={isReadOnly}
                         />
@@ -868,6 +1042,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
                           type="text"
                           defaultValue={entry.reason_note || ''}
                           onBlur={(e) => handleCellBlur(entry, 'reason_note', e.target.value)}
+                          onKeyDown={handleCellKeyDown}
                           className="bg-transparent w-full text-slate-600 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 text-xs placeholder-slate-400"
                           placeholder={t.placeholderReason}
                           disabled={isReadOnly}
@@ -1025,6 +1200,99 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
         </div>
       )}
 
+      {/* Add Department (inline, from the sheet) */}
+      {showAddDept && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-[28px] p-6 w-full max-w-md shadow-2xl animate-scale-in">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-5">
+              <h3 className="font-extrabold text-slate-900 text-lg">
+                {lang === 'TH' ? 'เพิ่มแผนกใหม่' : 'Add New Department'}
+              </h3>
+              <button
+                onClick={() => setShowAddDept(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                  {lang === 'TH' ? 'ชื่อแผนก' : 'Department Name'}
+                </label>
+                <input
+                  type="text"
+                  value={newDeptName}
+                  onChange={(e) => setNewDeptName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateDept(); } }}
+                  placeholder={lang === 'TH' ? 'เช่น บัญชี' : 'e.g. Accounting'}
+                  className="glass-input w-full text-sm font-semibold"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setShowAddDept(false)} className="glass-btn-secondary text-sm font-bold">
+                  {lang === 'TH' ? 'ยกเลิก' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateDept}
+                  disabled={savingDept || !newDeptName.trim()}
+                  className="glass-btn-primary text-sm font-bold disabled:opacity-50"
+                >
+                  {lang === 'TH' ? 'บันทึกข้อมูล' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Departments (rename / delete, with confirm) */}
+      {showManageDept && (
+        <ManageDepartmentsModal
+          departments={departments}
+          lang={lang}
+          onClose={() => setShowManageDept(false)}
+          onReload={reloadDepartments}
+        />
+      )}
+
+      {/* Reopen (un-finalize) confirmation */}
+      {showReopenConfirm && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-[24px] p-6 w-full max-w-md shadow-2xl animate-scale-in text-center space-y-4">
+            <div className="mx-auto w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
+              <Unlock className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-lg">
+                {lang === 'TH' ? 'ยกเลิกการยืนยันแผ่นงาน' : 'Reopen Sheet'}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1.5 font-medium leading-relaxed px-4">
+                {lang === 'TH'
+                  ? 'แผ่นงานจะกลับมาเป็นแบบร่างและแก้ไขได้อีกครั้ง ต้องการดำเนินการต่อหรือไม่?'
+                  : 'This sheet will return to draft and become editable again. Continue?'}
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => setShowReopenConfirm(false)}
+                className="glass-btn-secondary py-2 px-5 text-xs font-bold w-full"
+              >
+                {lang === 'TH' ? 'ยกเลิก' : 'Cancel'}
+              </button>
+              <button
+                onClick={handleReopen}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition w-full"
+              >
+                {lang === 'TH' ? 'ยืนยัน' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showFinalizeConfirm && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-[24px] p-6 w-full max-w-md shadow-2xl animate-scale-in text-center space-y-4">
@@ -1070,8 +1338,183 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack }) {
   );
 }
 
+// Manage departments (rename / delete) without leaving the sheet. Deleting a
+// department that still has budget data deactivates it instead (handled by the
+// backend) to protect history; we surface that outcome to the user.
+function ManageDepartmentsModal({ departments, lang, onClose, onReload }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [deptToDelete, setDeptToDelete] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const startEdit = (d) => { setEditingId(d.id); setEditName(d.dept_name); };
+  const cancelEdit = () => { setEditingId(null); setEditName(''); };
+
+  const saveEdit = async (d) => {
+    const name = editName.trim();
+    if (!name) return;
+    setBusy(true);
+    try {
+      await api.patch(`/departments/${d.id}`, { dept_name: name });
+      await onReload();
+      cancelEdit();
+    } catch (err) {
+      console.error('Rename department failed:', err);
+      alert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถบันทึกได้' : 'Could not save'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    const d = deptToDelete;
+    if (!d) return;
+    setBusy(true);
+    try {
+      await api.delete(`/departments/${d.id}`);
+      await onReload();
+      setDeptToDelete(null);
+    } catch (err) {
+      console.error('Delete department failed:', err);
+      // A department that still has budget data cannot be deleted.
+      if (err.response?.data?.code === 'HAS_DATA') {
+        alert(lang === 'TH'
+          ? 'ไม่สามารถลบแผนกได้ เนื่องจากยังมีข้อมูลงบประมาณอยู่ กรุณาลบข้อมูล/แผ่นงานของแผนกนี้ก่อน แล้วจึงลบแผนกได้'
+          : 'This department cannot be deleted because it still has budget data. Remove its data / sheets first, then delete it.');
+      } else {
+        alert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถลบแผนกได้' : 'Could not delete department'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white border border-slate-200 rounded-[28px] p-6 w-full max-w-md shadow-2xl animate-scale-in">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+          <h3 className="font-extrabold text-slate-900 text-lg">
+            {lang === 'TH' ? 'จัดการแผนก' : 'Manage Departments'}
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition cursor-pointer">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+          {departments.map(d => (
+            <div key={d.id} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2.5">
+              {editingId === d.id ? (
+                <>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(d); } if (e.key === 'Escape') cancelEdit(); }}
+                    className="glass-input flex-1 text-sm font-semibold !py-1.5"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => saveEdit(d)}
+                    disabled={busy || !editName.trim()}
+                    className="p-1.5 text-[var(--color-primary)] hover:bg-[var(--color-primary-bg-light)] rounded-lg transition disabled:opacity-40"
+                    title={lang === 'TH' ? 'บันทึก' : 'Save'}
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={cancelEdit}
+                    className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition"
+                    title={lang === 'TH' ? 'ยกเลิก' : 'Cancel'}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Building2 className="h-4 w-4 text-slate-300 shrink-0" />
+                  <span className="flex-1 text-sm font-bold text-slate-800 truncate" title={d.dept_name}>
+                    {d.dept_name}
+                    {!d.is_active && (
+                      <span className="ml-2 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                        {lang === 'TH' ? '(ระงับ)' : '(suspended)'}
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    onClick={() => startEdit(d)}
+                    className="p-1.5 text-slate-500 hover:text-[var(--color-primary)] hover:bg-[var(--color-primary-bg-light)] rounded-lg transition cursor-pointer"
+                    title={lang === 'TH' ? 'แก้ไขชื่อ' : 'Edit name'}
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setDeptToDelete(d)}
+                    className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                    title={lang === 'TH' ? 'ลบแผนก' : 'Delete department'}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+          {departments.length === 0 && (
+            <div className="text-center py-8 text-slate-400 text-sm font-semibold">
+              {lang === 'TH' ? 'ยังไม่มีแผนก' : 'No departments yet'}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end pt-4 mt-3 border-t border-slate-100">
+          <button onClick={onClose} className="glass-btn-secondary text-sm font-bold">
+            {lang === 'TH' ? 'ปิด' : 'Close'}
+          </button>
+        </div>
+      </div>
+
+      {/* Delete confirmation (sits above the manage modal) */}
+      {deptToDelete && (
+        <div className="fixed inset-0 z-[55] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-[24px] p-6 w-full max-w-sm shadow-2xl animate-scale-in text-center space-y-4">
+            <div className="mx-auto w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center text-rose-500">
+              <Trash2 className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-lg">
+                {lang === 'TH' ? 'ยืนยันการลบแผนก' : 'Confirm Deletion'}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1.5 font-medium leading-relaxed px-2">
+                {lang === 'TH'
+                  ? `ต้องการลบแผนก "${deptToDelete.dept_name}" ใช่หรือไม่? แผนกที่ยังมีข้อมูลงบประมาณอยู่จะลบไม่ได้`
+                  : `Delete department "${deptToDelete.dept_name}"? A department that still has budget data cannot be deleted.`}
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => setDeptToDelete(null)}
+                disabled={busy}
+                className="glass-btn-secondary py-2 px-5 text-xs font-bold w-full disabled:opacity-50"
+              >
+                {lang === 'TH' ? 'ยกเลิก' : 'Cancel'}
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={busy}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition w-full disabled:opacity-50"
+              >
+                {lang === 'TH' ? 'ยืนยันการลบ' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Subcomponent for Searchable Cost Center Dropdown inside cell
-function CostCenterDropdown({ 
+function CostCenterDropdown({
   entry, 
   costCenters, 
   activeDropdownRow, 
@@ -1086,6 +1529,7 @@ function CostCenterDropdown({
   const [pendingNewCC, setPendingNewCC] = useState(null);
   const triggerRef = useRef(null);
   const menuRef = useRef(null);
+  const searchInputRef = useRef(null);
   const [coords, setCoords] = useState({ top: 0, bottom: 0, left: 0, width: 0, direction: 'down' });
   
   const isOpen = activeDropdownRow === entry.id;
@@ -1221,9 +1665,16 @@ function CostCenterDropdown({
           <div className="relative mb-2">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
             <input
+              ref={searchInputRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && search.trim() && !costCenters.some(cc => cc.cc_code === search.trim())) {
+                  e.preventDefault();
+                  handleNewCCSubmit();
+                }
+              }}
               className="w-full bg-slate-50 border border-slate-200 text-xs rounded-lg pl-8 pr-3 py-1.5 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary-light)]"
               placeholder={lang === 'TH' ? 'ค้นหาหรือพิมพ์รหัสใหม่...' : 'Search or type code...'}
               autoFocus
@@ -1250,15 +1701,26 @@ function CostCenterDropdown({
             )}
           </div>
 
-          {/* Inline Create Trigger */}
-          {search && !costCenters.some(cc => cc.cc_code === search.trim()) && (
+          {/* Inline Create shortcut — always visible so users can add a cost
+              center without leaving the sheet. Type a code then click/Enter. */}
+          {!costCenters.some(cc => cc.cc_code === search.trim()) && (
             <button
-              onClick={handleNewCCSubmit}
+              onClick={() => {
+                if (search.trim()) {
+                  handleNewCCSubmit();
+                } else if (searchInputRef.current) {
+                  searchInputRef.current.focus();
+                }
+              }}
               type="button"
               className="w-full text-center mt-2 bg-[var(--color-primary-bg-light)] hover:bg-[var(--color-primary-light)] border border-[var(--color-primary-light)] text-[var(--color-primary)] font-bold rounded-lg py-1.5 text-xs flex items-center justify-center gap-1 cursor-pointer transition"
             >
               <Plus className="h-3 w-3" />
-              <span>{lang === 'TH' ? `เพิ่ม "${search}" ใหม่ inline` : `Add new "${search}" inline`}</span>
+              <span>
+                {search.trim()
+                  ? (lang === 'TH' ? `เพิ่มศูนย์ต้นทุน "${search.trim()}"` : `Add cost center "${search.trim()}"`)
+                  : (lang === 'TH' ? 'เพิ่มศูนย์ต้นทุนใหม่' : 'Add new cost center')}
+              </span>
             </button>
           )}
         </div>,

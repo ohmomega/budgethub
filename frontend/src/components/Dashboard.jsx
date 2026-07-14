@@ -252,10 +252,25 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
       padL, 76
     );
 
-    const chartTop = 110, chartBottom = H - 70, chartLeft = padL, chartRight = W - padR;
-    const maxAmt = Math.max(...months.map(m => m.totalAmount), 1);
+    const chartTop = 124, chartBottom = H - 70, chartLeft = padL, chartRight = W - padR;
+    const maxAmt = Math.max(...months.map(m => Math.max(m.totalAmount, m.budgetCutTotal || 0)), 1);
     const slot = (chartRight - chartLeft) / 12;
 
+    const netColor = '#0d9488';
+    const cutColor = '#ec4899';
+
+    // Legend (net total + budget cut)
+    ctx.font = 'bold 14px Tahoma, "Segoe UI", sans-serif';
+    ctx.textAlign = 'left';
+    const ly = 100;
+    let lx = chartLeft;
+    ctx.fillStyle = netColor; ctx.fillRect(lx, ly - 11, 14, 14);
+    ctx.fillStyle = '#334155'; ctx.fillText(t.statTotal, lx + 20, ly);
+    lx += 20 + ctx.measureText(t.statTotal).width + 30;
+    ctx.fillStyle = cutColor; ctx.fillRect(lx, ly - 11, 14, 14);
+    ctx.fillStyle = '#334155'; ctx.fillText(t.statBudgetCut, lx + 20, ly);
+
+    // Axis baseline
     ctx.strokeStyle = '#e2e8f0';
     ctx.beginPath();
     ctx.moveTo(chartLeft, chartBottom);
@@ -263,19 +278,20 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
     ctx.stroke();
 
     months.forEach((m, i) => {
-      const bw = slot * 0.6;
-      const x = chartLeft + slot * i + (slot - bw) / 2;
-      const hgt = (m.totalAmount / maxAmt) * (chartBottom - chartTop);
-      const y = chartBottom - hgt;
-      const grad = ctx.createLinearGradient(0, y, 0, chartBottom);
-      grad.addColorStop(0, '#f43f5e');
-      grad.addColorStop(1, '#ec4899');
-      ctx.fillStyle = grad;
-      ctx.fillRect(x, y, bw, Math.max(hgt, m.totalAmount > 0 ? 2 : 0));
+      const groupW = slot * 0.6;
+      const barW = (groupW - 4) / 2;
+      const gx = chartLeft + slot * i + (slot - groupW) / 2;
+      const cut = m.budgetCutTotal || 0;
+      const netH = (m.totalAmount / maxAmt) * (chartBottom - chartTop);
+      const cutH = (cut / maxAmt) * (chartBottom - chartTop);
+      ctx.fillStyle = netColor;
+      ctx.fillRect(gx, chartBottom - netH, barW, Math.max(netH, m.totalAmount > 0 ? 2 : 0));
+      ctx.fillStyle = cutColor;
+      ctx.fillRect(gx + barW + 4, chartBottom - cutH, barW, Math.max(cutH, cut > 0 ? 2 : 0));
       ctx.fillStyle = '#64748b';
       ctx.font = '13px Tahoma, "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(MONTH_NAMES[lang][m.month - 1].substring(0, 3), x + bw / 2, chartBottom + 22);
+      ctx.fillText(MONTH_NAMES[lang][m.month - 1].substring(0, 3), gx + groupW / 2, chartBottom + 22);
     });
 
     canvas.toBlob((blob) => {
@@ -696,8 +712,8 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
               </div>
             ) : (() => {
               const months = yearly?.months || [];
-              const maxAmt = Math.max(...months.map(m => m.totalAmount), 1);
-              const hasData = months.some(m => m.totalAmount > 0);
+              const maxAmt = Math.max(...months.map(m => Math.max(m.totalAmount, m.budgetCutTotal || 0)), 1);
+              const hasData = months.some(m => m.totalAmount > 0 || (m.budgetCutTotal || 0) > 0);
               const selected = activeReportMonth ? months.find(m => m.month === activeReportMonth) : null;
 
               return (
@@ -722,40 +738,69 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                           ? `฿${selected.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                           : '—'}
                       </span>
+                      {selected && (
+                        <span className="text-[11px] font-bold text-pink-600 mt-1 block">
+                          {t.statBudgetCut}: ฿{(selected.budgetCutTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* 12-month bar chart */}
+                  {/* 12-month twin-bar chart: net total + budget cut */}
                   {hasData ? (
-                    <div className="h-64 w-full flex items-end justify-between gap-1.5 border-b border-slate-100 pb-2">
-                      {months.map((m) => {
-                        const percentage = (m.totalAmount / maxAmt) * 90;
-                        const isActive = activeReportMonth === m.month;
-                        return (
-                          <button
-                            key={m.month}
-                            onClick={() => setActiveReportMonth(m.month)}
-                            className="h-full flex flex-col justify-end items-center group flex-1 relative cursor-pointer"
-                            title={`฿${m.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-                          >
-                            <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] font-bold py-1 px-2 rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 shadow pointer-events-none whitespace-nowrap z-10">
-                              ฿{m.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </div>
-                            <div
-                              style={{ height: `${Math.max(percentage, m.totalAmount > 0 ? 3 : 0)}%` }}
-                              className={`w-full max-w-[34px] rounded-t-lg shadow-sm transition-all duration-300 ${
-                                isActive
-                                  ? 'bg-gradient-to-t from-[var(--color-primary)] to-[var(--color-primary-hover)]'
-                                  : 'bg-gradient-to-t from-rose-400 to-pink-500 group-hover:from-rose-500 group-hover:to-pink-600'
-                              }`}
-                            />
-                            <span className={`text-[9px] font-bold mt-2 block ${isActive ? 'text-[var(--color-primary)]' : 'text-slate-400'}`}>
-                              {MONTH_NAMES[lang][m.month - 1].substring(0, 3)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <>
+                      <div className="h-64 w-full flex items-end justify-between gap-1.5 border-b border-slate-100 pb-2">
+                        {months.map((m) => {
+                          const cut = m.budgetCutTotal || 0;
+                          const netPct = Math.max((m.totalAmount / maxAmt) * 90, m.totalAmount > 0 ? 3 : 0);
+                          const cutPct = Math.max((cut / maxAmt) * 90, cut > 0 ? 3 : 0);
+                          const isActive = activeReportMonth === m.month;
+                          return (
+                            <button
+                              key={m.month}
+                              onClick={() => setActiveReportMonth(m.month)}
+                              className={`h-full flex flex-col justify-end items-center group flex-1 relative cursor-pointer rounded-lg transition ${isActive ? 'bg-slate-100/70' : ''}`}
+                            >
+                              <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 shadow pointer-events-none whitespace-nowrap z-10 space-y-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full inline-block bg-[var(--color-primary)]" />
+                                  <span>{t.statTotal}: ฿{m.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full inline-block bg-pink-500" />
+                                  <span>{t.statBudgetCut}: ฿{cut.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                              </div>
+                              <div className="flex-1 w-full flex items-end justify-center gap-1">
+                                <div
+                                  style={{ height: `${netPct}%` }}
+                                  className="w-2.5 sm:w-3 bg-gradient-to-t from-teal-400 to-[var(--color-primary)] rounded-t-md shadow-sm transition-all duration-300"
+                                />
+                                <div
+                                  style={{ height: `${cutPct}%` }}
+                                  className="w-2.5 sm:w-3 bg-gradient-to-t from-rose-400 to-pink-500 rounded-t-md shadow-sm transition-all duration-300"
+                                />
+                              </div>
+                              <span className={`text-[9px] font-bold mt-2 block ${isActive ? 'text-[var(--color-primary)]' : 'text-slate-400'}`}>
+                                {MONTH_NAMES[lang][m.month - 1].substring(0, 3)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Legend */}
+                      <div className="flex items-center justify-center gap-5 mt-3">
+                        <div className="flex items-center gap-2">
+                          <span className="h-3 w-3 rounded-full inline-block bg-[var(--color-primary)]" />
+                          <span className="text-xs font-semibold text-slate-600">{t.statTotal}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="h-3 w-3 rounded-full inline-block bg-pink-500" />
+                          <span className="text-xs font-semibold text-slate-600">{t.statBudgetCut}</span>
+                        </div>
+                      </div>
+                    </>
                   ) : (
                     <div className="h-64 flex items-center justify-center text-slate-400 text-sm font-semibold">
                       {t.reportNoData}

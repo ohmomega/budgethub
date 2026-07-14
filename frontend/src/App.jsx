@@ -7,6 +7,7 @@ import BudgetSheetsList from './components/BudgetSheetsList';
 import CostCentersList from './components/CostCentersList';
 import DepartmentsList from './components/DepartmentsList';
 import ManageUsers from './components/ManageUsers';
+import HelpCenter from './components/HelpCenter';
 import {
   LogOut,
   LayoutDashboard,
@@ -16,7 +17,13 @@ import {
   Users,
   User,
   Globe,
-  Palette
+  Palette,
+  HelpCircle,
+  CheckCircle2,
+  Circle,
+  ArrowRight,
+  Sparkles,
+  X
 } from 'lucide-react';
 
 const dict = {
@@ -26,11 +33,26 @@ const dict = {
     costCenters: 'ศูนย์ต้นทุน',
     departments: 'จัดการแผนก',
     manageUsers: 'จัดการผู้ใช้งาน',
+    help: 'คู่มือการใช้งาน',
     language: 'ภาษา',
     theme: 'ธีมสี',
     logout: 'ออกจากระบบ',
     checking: 'กำลังตรวจสอบสิทธิ์การใช้งาน...',
     eduOnly: 'เพื่อการศึกษาเท่านั้น • ข้อมูลเป็นเพียงตัวอย่าง',
+    welcomeTitle: 'ยินดีต้อนรับสู่ BudgetHub',
+    welcomeSubtitle: 'มาเริ่มตั้งค่าโปรแกรมกันก่อน ทำ 3 ขั้นตอนนี้ให้ครบเพื่อเริ่มใช้งาน',
+    step1: 'สร้าง "แผ่นงบประมาณ" แรกของคุณ',
+    step1Desc: 'เลือกเดือน/ปี เพื่อเริ่มต้น',
+    step2: 'สร้าง "แผนก"',
+    step2Desc: 'ที่เมนู "จัดการแผนก" หรือเพิ่มจากในแผ่นงานก็ได้',
+    step3: 'เพิ่ม "ศูนย์ต้นทุน"',
+    step3Desc: 'รหัสศูนย์ต้นทุนใช้ได้กับทุกแผนก',
+    goDept: 'ไปที่จัดการแผนก',
+    goCc: 'สร้างศูนย์ต้นทุน',
+    goSheet: 'สร้างแผ่นงบประมาณ',
+    doneLabel: 'เสร็จแล้ว',
+    welcomeClose: 'ปิดหน้าต่างนี้',
+    openHelp: 'ดูคู่มือการใช้งานแบบละเอียด',
   },
   EN: {
     dashboard: 'Dashboard',
@@ -38,11 +60,26 @@ const dict = {
     costCenters: 'Cost Centers',
     departments: 'Departments',
     manageUsers: 'Manage Users',
+    help: 'Help & Guide',
     language: 'Language',
     theme: 'Theme Color',
     logout: 'Log Out',
     checking: 'Checking credentials...',
     eduOnly: 'For educational purposes only • Sample data',
+    welcomeTitle: 'Welcome to BudgetHub',
+    welcomeSubtitle: "Let's set things up. Complete these 3 steps to get started.",
+    step1: 'Create your first Budget Sheet',
+    step1Desc: 'Pick a month/year to begin.',
+    step2: 'Create a Department',
+    step2Desc: 'From the "Departments" page, or add one inside a sheet.',
+    step3: 'Create a Cost Center',
+    step3Desc: 'Cost center codes work for every department.',
+    goDept: 'Manage Departments',
+    goCc: 'Create Cost Center',
+    goSheet: 'Create Budget Sheet',
+    doneLabel: 'Done',
+    welcomeClose: 'Close this window',
+    openHelp: 'Open the full user guide',
   }
 };
 
@@ -54,6 +91,33 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('themeColor') || 'teal');
   const [themeMode, setThemeMode] = useState(() => localStorage.getItem('themeMode') || 'light');
   const [activeSheetPeriod, setActiveSheetPeriod] = useState(null); // { month, year } when editing
+
+  // Onboarding / first-run setup state
+  const [setup, setSetup] = useState({ depts: 0, ccs: 0, sheets: 0, loaded: false });
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  // Count the core entities so the setup checklist can show live progress and
+  // the first-run welcome can decide whether to appear.
+  const refreshSetup = async () => {
+    try {
+      const [deptRes, ccRes, periodRes] = await Promise.all([
+        api.get('/departments'),
+        api.get('/cost-centers'),
+        api.get('/periods'),
+      ]);
+      setSetup({
+        depts: deptRes.data.length,
+        ccs: ccRes.data.length,
+        sheets: periodRes.data.length,
+        loaded: true,
+      });
+      return { depts: deptRes.data.length };
+    } catch (err) {
+      console.error('Setup check failed:', err);
+      setSetup(prev => ({ ...prev, loaded: true }));
+      return { depts: 0 };
+    }
+  };
 
   // Check auth status on mount - automatically logs in as administrator
   useEffect(() => {
@@ -88,6 +152,18 @@ export default function App() {
     autoLogin();
   }, []);
 
+  // After sign-in, load setup counts and decide whether to show the first-run
+  // welcome. It appears if the user has never dismissed it, or whenever there
+  // are still no departments (the app is not usable until one exists).
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { depts } = await refreshSetup();
+      const seen = localStorage.getItem('bh_welcome_seen') === '1';
+      if (!seen || depts === 0) setShowWelcome(true);
+    })();
+  }, [user]);
+
   // Sync theme to body class
   useEffect(() => {
     document.body.className = `theme-${theme} mode-${themeMode}`;
@@ -116,6 +192,24 @@ export default function App() {
   const handleOpenSheet = (month, year) => {
     setActiveSheetPeriod({ month, year });
     setCurrentTab('sheets');
+  };
+
+  // Generic tab navigation used by onboarding and empty-state guides.
+  const handleNavigate = (tab) => {
+    setCurrentTab(tab);
+    setActiveSheetPeriod(null);
+  };
+
+  const dismissWelcome = () => {
+    localStorage.setItem('bh_welcome_seen', '1');
+    setShowWelcome(false);
+  };
+
+  // Navigate from the welcome checklist to a setup page (keeps the flag so it
+  // won't nag again, but the user can always reopen it from the Help page).
+  const goSetup = (tab) => {
+    dismissWelcome();
+    handleNavigate(tab);
   };
 
   const t = dict[lang];
@@ -205,6 +299,18 @@ export default function App() {
             >
               <Building2 className="h-5 w-5" />
               <span>{t.departments}</span>
+            </button>
+
+            {/* Help & Guide */}
+            <button
+              onClick={() => { setCurrentTab('help'); setActiveSheetPeriod(null); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition cursor-pointer ${currentTab === 'help'
+                ? 'bg-[var(--color-primary-bg-light)] text-[var(--color-primary)]'
+                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-50'
+                }`}
+            >
+              <HelpCircle className="h-5 w-5" />
+              <span>{t.help}</span>
             </button>
 
           </nav>
@@ -330,13 +436,20 @@ export default function App() {
         {currentTab === 'sheets' && (
           activeSheetPeriod ? (
             <BudgetGrid
+              key={`${activeSheetPeriod.month}-${activeSheetPeriod.year}`}
               user={user}
               lang={lang}
               periodInfo={activeSheetPeriod}
               onBack={() => setActiveSheetPeriod(null)}
+              onNavigate={handleNavigate}
             />
           ) : (
-            <BudgetSheetsList user={user} lang={lang} onOpenSheet={handleOpenSheet} />
+            <BudgetSheetsList
+              user={user}
+              lang={lang}
+              onOpenSheet={handleOpenSheet}
+              onNavigate={handleNavigate}
+            />
           )
         )}
         {currentTab === 'costcenters' && (
@@ -345,8 +458,87 @@ export default function App() {
         {currentTab === 'departments' && (
           <DepartmentsList user={user} lang={lang} />
         )}
+        {currentTab === 'help' && (
+          <HelpCenter lang={lang} onNavigate={handleNavigate} onOpenSetup={() => { refreshSetup(); setShowWelcome(true); }} />
+        )}
 
       </main>
+
+      {/* First-run welcome / setup checklist */}
+      {showWelcome && (
+        <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-[28px] p-7 w-full max-w-lg shadow-2xl animate-scale-in">
+            <div className="flex items-start justify-between mb-1">
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 bg-[var(--color-primary)] text-white rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-teal-600/10">
+                  <Sparkles className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-lg leading-tight">{t.welcomeTitle}</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">{t.welcomeSubtitle}</p>
+                </div>
+              </div>
+              <button
+                onClick={dismissWelcome}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition cursor-pointer shrink-0"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 mt-5">
+              {[
+                { done: setup.sheets > 0, title: t.step1, desc: t.step1Desc, btn: t.goSheet, tab: 'sheets' },
+                { done: setup.depts > 0, title: t.step2, desc: t.step2Desc, btn: t.goDept, tab: 'departments' },
+                { done: setup.ccs > 0, title: t.step3, desc: t.step3Desc, btn: t.goCc, tab: 'costcenters' },
+              ].map((s, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center gap-3 p-3.5 rounded-2xl border ${
+                    s.done ? 'bg-emerald-50/60 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  {s.done
+                    ? <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
+                    : <Circle className="h-6 w-6 text-slate-300 shrink-0" />}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <span className="text-[10px] font-black text-slate-400">{i + 1}</span>
+                      {s.title}
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-medium">{s.desc}</div>
+                  </div>
+                  {s.done ? (
+                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wide shrink-0">{t.doneLabel}</span>
+                  ) : (
+                    <button
+                      onClick={() => goSetup(s.tab)}
+                      className="glass-btn-primary text-xs font-bold py-1.5 px-3 shrink-0"
+                    >
+                      <span>{s.btn}</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-5 mt-4 border-t border-slate-100">
+              <button
+                onClick={() => { dismissWelcome(); handleNavigate('help'); }}
+                className="text-xs font-bold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] flex items-center gap-1 cursor-pointer"
+              >
+                <HelpCircle className="h-4 w-4" />
+                <span>{t.openHelp}</span>
+              </button>
+              <button onClick={dismissWelcome} className="glass-btn-secondary text-sm font-bold">
+                {t.welcomeClose}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

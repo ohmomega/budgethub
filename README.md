@@ -43,12 +43,16 @@ All data is stored locally in an embedded SQLite file.
 ## Features
 
 - 📊 **Dashboard** — totals, budget-cut amounts, a monthly comparison chart (net total vs. budget cuts), and cost-center breakdown.
-- 🧾 **Spreadsheet-style budget entry** — add/edit/delete line items with auto-save on blur.
-- ➕ **Inline cost centers** — editors can add a new cost-center code without leaving the form.
+- 📈 **Yearly summary report** — a full-year window with a two-bar chart per month (net total + budget cut), exportable to PDF, JPG, or Excel.
+- 🧾 **Spreadsheet-style budget entry** — add/edit/delete line items with auto-save; press Enter to confirm a cell. The table fits the window (no horizontal scrolling) and rows can be dragged or moved to reorder.
+- 🏢 **Departments** — name-based departments (codes are generated automatically). Manage them from a dedicated page or right inside a sheet. A department that still has budget data can't be deleted until its data is removed.
+- 🏦 **Global cost centers** — a cost-center code works across all departments. Add or rename one from the registry, or inline in a sheet without leaving the form.
+- 🔒 **Finalize & reopen** — lock a sheet when it's done; reopen it later to edit again.
 - 🔢 **Fractional row insertion** — insert a row between any two rows without disturbing others.
 - 💵 **Server-side calculations** — 7% VAT and totals are always computed by the backend for safety.
 - 📜 **Audit logs** — every create/update/delete is recorded with old vs. new values.
-- 📤 **Export** — export to Excel (`.xlsx`, formulas preserved) or a PDF report.
+- 📤 **Export** — export a sheet to Excel (`.xlsx`, formulas preserved) or PDF, and the yearly report to PDF / JPG / Excel.
+- 🆘 **Built-in help & guided setup** — an in-app Help page plus a first-run setup checklist walk new users through departments, cost centers, and sheets.
 - 👥 **Single-user** — the desktop build has **no login screen**; it always runs locally as the built-in admin user.
 
 ## Tech stack / Languages used
@@ -168,12 +172,16 @@ BudgetHub เป็น **โปรแกรมเดสก์ท็อปบน 
 ## ฟีเจอร์หลัก
 
 - 📊 **แดชบอร์ด** — ยอดรวม, ยอดงบที่ตัด, กราฟเปรียบเทียบรายเดือน (ยอดรวมสุทธิ เทียบกับงบที่ตัด) และสัดส่วนตามศูนย์ต้นทุน
-- 🧾 **กรอกงบแบบตาราง** — เพิ่ม/แก้ไข/ลบ รายการ พร้อมบันทึกอัตโนมัติเมื่อออกจากช่อง (onBlur)
-- ➕ **เพิ่มศูนย์ต้นทุนได้ทันที** — ผู้ใช้ระดับ editor พิมพ์เพิ่มรหัสศูนย์ต้นทุนใหม่ได้โดยไม่ต้องออกจากฟอร์ม
+- 📈 **รายงานสรุปรายปี** — หน้าต่างรายงานทั้งปี แสดงกราฟ 2 แท่งต่อเดือน (ยอดรวมสุทธิ + งบที่ตัด) ส่งออกเป็น PDF, JPG หรือ Excel ได้
+- 🧾 **กรอกงบแบบตาราง** — เพิ่ม/แก้ไข/ลบ รายการ พร้อมบันทึกอัตโนมัติ กด Enter เพื่อยืนยันช่องได้ ตารางพอดีหน้าจอ (ไม่มีแถบเลื่อนแนวนอน) และลาก/เลื่อนแถวเพื่อจัดลำดับได้
+- 🏢 **แผนก** — แผนกใช้ชื่อเป็นหลัก (สร้างรหัสให้อัตโนมัติ) จัดการได้ทั้งที่หน้า "จัดการแผนก" และจากในแผ่นงาน แผนกที่ยังมีข้อมูลงบประมาณอยู่จะลบไม่ได้จนกว่าจะลบข้อมูลนั้นก่อน
+- 🏦 **ศูนย์ต้นทุนใช้ร่วมกันทุกแผนก** — รหัสศูนย์ต้นทุนหนึ่งรหัสใช้ได้กับทุกแผนก เพิ่มหรือแก้ไขได้จากทะเบียนศูนย์ต้นทุน หรือพิมพ์เพิ่มในแผ่นงานได้ทันที
+- 🔒 **ยืนยันและยกเลิกการยืนยันแผ่นงาน** — ล็อกแผ่นงานเมื่อทำเสร็จ และเปิดกลับมาแก้ไขได้ภายหลัง
 - 🔢 **แทรกแถวกลางตาราง** — แทรกแถวระหว่างแถวใดก็ได้โดยไม่กระทบลำดับแถวอื่น
 - 💵 **คำนวณฝั่งเซิร์ฟเวอร์** — ภาษี 7% และราคารวมถูกคำนวณโดย backend เสมอเพื่อความปลอดภัยของตัวเลข
 - 📜 **บันทึกการแก้ไข (Audit Log)** — บันทึกทุกการเพิ่ม/แก้ไข/ลบ พร้อมค่าก่อน–หลัง
-- 📤 **ส่งออกไฟล์** — ส่งออกเป็น Excel (`.xlsx` คงสูตรไว้) หรือรายงาน PDF
+- 📤 **ส่งออกไฟล์** — ส่งออกแผ่นงานเป็น Excel (`.xlsx` คงสูตรไว้) หรือ PDF และส่งออกรายงานรายปีเป็น PDF / JPG / Excel
+- 🆘 **คู่มือในตัวและตัวช่วยตั้งค่าเริ่มต้น** — มีหน้า "คู่มือการใช้งาน" ในโปรแกรม พร้อมเช็คลิสต์ตั้งค่าครั้งแรก แนะนำการสร้างแผนก ศูนย์ต้นทุน และแผ่นงาน
 - 👥 **ผู้ใช้คนเดียว** — เวอร์ชันเดสก์ท็อป **ไม่มีหน้าล็อกอิน** ใช้งานในเครื่องในฐานะผู้ดูแล (admin) เสมอ
 
 ## เทคโนโลยี / ภาษาที่ใช้พัฒนา
