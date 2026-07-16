@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
+import { showAlert } from '../showAlert';
 import {
   Plus,
   Search,
@@ -28,6 +29,7 @@ const dict = {
     statusInactive: 'ระงับการใช้',
     deleteConfirm: 'คุณต้องการลบศูนย์ต้นทุนนี้ใช่หรือไม่?',
     deleteSuccess: 'ลบศูนย์ต้นทุนสำเร็จ',
+    deleteHasData: 'ไม่สามารถลบศูนย์ต้นทุนได้ เนื่องจากยังมีข้อมูลงบประมาณอยู่ กรุณาลบข้อมูล/แผ่นงานที่ใช้ศูนย์ต้นทุนนี้ก่อน แล้วจึงลบได้',
     modalCreateTitle: 'เพิ่มศูนย์ต้นทุนใหม่',
     modalEditTitle: 'แก้ไขศูนย์ต้นทุน',
     fieldCode: 'รหัสศูนย์ต้นทุน',
@@ -55,6 +57,7 @@ const dict = {
     statusInactive: 'Suspended',
     deleteConfirm: 'Are you sure you want to delete this cost center?',
     deleteSuccess: 'Cost center deleted successfully',
+    deleteHasData: 'This cost center cannot be deleted because it still has budget data. Remove its data / sheets first, then delete it.',
     modalCreateTitle: 'Add New Cost Center',
     modalEditTitle: 'Edit Cost Center',
     fieldCode: 'Cost Center Code',
@@ -83,6 +86,10 @@ export default function CostCentersList({ user, lang }) {
     cc_desc: '',
     is_active: true
   });
+  // Inline hint shown when Save is pressed with an empty code, so the button
+  // never looks like it "does nothing".
+  const [formHint, setFormHint] = useState('');
+  const codeInputRef = useRef(null);
 
   const t = dict[lang];
 
@@ -110,6 +117,7 @@ export default function CostCentersList({ user, lang }) {
       cc_desc: '',
       is_active: true
     });
+    setFormHint('');
     setShowModal(true);
   };
 
@@ -121,12 +129,18 @@ export default function CostCentersList({ user, lang }) {
       cc_desc: cc.cc_desc || '',
       is_active: cc.is_active
     });
+    setFormHint('');
     setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!ccForm.cc_code.trim()) return;
+    if (!ccForm.cc_code.trim()) {
+      setFormHint(lang === 'TH' ? 'กรุณากรอกรหัสศูนย์ต้นทุนก่อน' : 'Please enter a cost center code first');
+      if (codeInputRef.current) codeInputRef.current.focus();
+      return;
+    }
+    setFormHint('');
 
     try {
       if (editingCc) {
@@ -150,7 +164,7 @@ export default function CostCentersList({ user, lang }) {
       fetchCostCenters();
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      showAlert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
     }
   };
 
@@ -159,10 +173,14 @@ export default function CostCentersList({ user, lang }) {
     try {
       await api.delete(`/cost-centers/${id}`);
       setCostCenters(prev => prev.filter(cc => cc.id !== id));
-      alert(t.deleteSuccess);
+      showAlert(t.deleteSuccess);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || 'ไม่สามารถลบศูนย์ต้นทุนนี้ได้');
+      if (err.response?.data?.code === 'HAS_DATA') {
+        showAlert(t.deleteHasData);
+      } else {
+        showAlert(err.response?.data?.error || 'ไม่สามารถลบศูนย์ต้นทุนนี้ได้');
+      }
     }
   };
 
@@ -174,7 +192,7 @@ export default function CostCentersList({ user, lang }) {
       setCostCenters(prev => prev.map(item => item.id === cc.id ? { ...item, is_active: updatedStatus } : item));
     } catch (err) {
       console.error(err);
-      alert('ไม่สามารถเปลี่ยนสถานะได้');
+      showAlert('ไม่สามารถเปลี่ยนสถานะได้');
     }
   };
 
@@ -330,13 +348,16 @@ export default function CostCentersList({ user, lang }) {
                   {t.fieldCode}
                 </label>
                 <input
+                  ref={codeInputRef}
                   type="text"
                   value={ccForm.cc_code}
-                  onChange={(e) => setCcForm(prev => ({ ...prev, cc_code: e.target.value }))}
+                  onChange={(e) => { setCcForm(prev => ({ ...prev, cc_code: e.target.value })); if (formHint) setFormHint(''); }}
                   className="glass-input w-full text-sm font-semibold"
                   placeholder="1234567890"
-                  required
                 />
+                {formHint && (
+                  <p className="text-xs font-bold text-rose-500 mt-2">{formHint}</p>
+                )}
               </div>
 
               {/* Cost Center Name */}
@@ -350,7 +371,6 @@ export default function CostCentersList({ user, lang }) {
                   onChange={(e) => setCcForm(prev => ({ ...prev, cc_name: e.target.value }))}
                   className="glass-input w-full text-sm font-semibold"
                   placeholder={lang === 'TH' ? 'เช่น บัญชี' : 'e.g. Accounting'}
-                  required
                 />
               </div>
 

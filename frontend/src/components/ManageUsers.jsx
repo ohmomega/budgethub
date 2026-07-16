@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
+import { showAlert } from '../showAlert';
 import { 
   Plus, 
   Search, 
@@ -157,7 +158,7 @@ export default function ManageUsers({ user: currentUser, lang }) {
       fetchUsers();
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการลงทะเบียน');
+      showAlert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการลงทะเบียน');
     }
   };
 
@@ -174,10 +175,10 @@ export default function ManageUsers({ user: currentUser, lang }) {
     try {
       await api.patch(`/auth/users/${selectedUser.id}`, { password: newPassword });
       setShowPasswordModal(false);
-      alert(lang === 'TH' ? 'เปลี่ยนรหัสผ่านสำเร็จ' : 'Password updated successfully');
+      showAlert(lang === 'TH' ? 'เปลี่ยนรหัสผ่านสำเร็จ' : 'Password updated successfully');
     } catch (err) {
       console.error(err);
-      alert('ไม่สามารถเปลี่ยนรหัสผ่านได้');
+      showAlert('ไม่สามารถเปลี่ยนรหัสผ่านได้');
     }
   };
 
@@ -185,10 +186,10 @@ export default function ManageUsers({ user: currentUser, lang }) {
     try {
       await api.delete(`/auth/users/${id}`);
       setUsers(prev => prev.filter(u => u.id !== id));
-      alert(t.deleteSuccess);
+      showAlert(t.deleteSuccess);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || 'ไม่สามารถลบผู้ใช้นี้ได้');
+      showAlert(err.response?.data?.error || 'ไม่สามารถลบผู้ใช้นี้ได้');
     }
   };
 

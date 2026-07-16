@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api, { downloadBlob } from '../api';
+import { showAlert } from '../showAlert';
 import MonthYearPicker from './MonthYearPicker';
 import {
   FolderOpen,
@@ -123,22 +124,22 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
       onOpenSheet(createMonth, createYear);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการสร้างแผ่นงาน');
+      showAlert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการสร้างแผ่นงาน');
     }
   };
 
   const handleDeletePeriod = async (id) => {
     if (user.role !== 'admin') {
-      alert(lang === 'TH' ? 'สิทธิ์ไม่เพียงพอ เฉพาะ Admin เท่านั้น' : 'Access denied: Admin only');
+      showAlert(lang === 'TH' ? 'สิทธิ์ไม่เพียงพอ เฉพาะ Admin เท่านั้น' : 'Access denied: Admin only');
       return;
     }
     try {
       await api.delete(`/periods/${id}`);
       setPeriods(prev => prev.filter(p => p.id !== id));
-      alert(t.deleteSuccess);
+      showAlert(t.deleteSuccess);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || 'ไม่สามารถลบได้');
+      showAlert(err.response?.data?.error || 'ไม่สามารถลบได้');
     }
   };
 
@@ -185,7 +186,7 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
       downloadBlob(res.data, `BudgetHub_${p.month}_${p.year}.${type}`);
     } catch (err) {
       console.error('Export failed:', err);
-      alert(lang === 'TH' ? 'ไม่สามารถส่งออกไฟล์ได้' : 'Could not export file');
+      showAlert(lang === 'TH' ? 'ไม่สามารถส่งออกไฟล์ได้' : 'Could not export file');
     }
   };
 

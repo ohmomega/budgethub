@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api, { downloadBlob } from '../api';
+import { showAlert } from '../showAlert';
 import MonthYearPicker from './MonthYearPicker';
 import {
   BarChart3,
@@ -175,7 +176,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
       onOpenSheet(createMonth, createYear);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการสร้างแผ่นงาน');
+      showAlert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการสร้างแผ่นงาน');
     }
   };
 
@@ -224,7 +225,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
       downloadBlob(res.data, `BudgetHub_report_${reportYear}.${type}`);
     } catch (err) {
       console.error('Report export failed:', err);
-      alert(lang === 'TH' ? 'ไม่สามารถส่งออกรายงานได้' : 'Could not export the report');
+      showAlert(lang === 'TH' ? 'ไม่สามารถส่งออกรายงานได้' : 'Could not export the report');
     }
   };
 

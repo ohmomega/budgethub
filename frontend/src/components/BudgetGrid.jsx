@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import api, { downloadBlob } from '../api';
+import { showAlert } from '../showAlert';
 import { 
   ArrowLeft,
   Plus, 
@@ -198,6 +199,10 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
   const [newDeptName, setNewDeptName] = useState('');
   const [savingDept, setSavingDept] = useState(false);
   const [showManageDept, setShowManageDept] = useState(false);
+  // Inline hint shown when someone presses "Add Department" with an empty name,
+  // so the button never looks like a dead / un-clickable control.
+  const [deptHint, setDeptHint] = useState('');
+  const deptNameInputRef = useRef(null);
 
   // Drag and drop states
   const [draggedIndex, setDraggedIndex] = useState(null);
@@ -516,10 +521,17 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
     }
   };
 
-  // Create a department without leaving the sheet, then select it.
+  // Create a department without leaving the sheet, then select it. If the name
+  // is empty we don't silently no-op (that made the button feel broken); we show
+  // a hint and refocus the field instead.
   const handleCreateDept = async () => {
     const name = newDeptName.trim();
-    if (!name) return;
+    if (!name) {
+      setDeptHint(lang === 'TH' ? 'กรุณากรอกชื่อแผนกก่อนกดเพิ่ม' : 'Please enter a department name first');
+      if (deptNameInputRef.current) deptNameInputRef.current.focus();
+      return;
+    }
+    setDeptHint('');
     setSavingDept(true);
     try {
       const res = await api.post('/departments', { dept_name: name });
@@ -528,7 +540,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
       setNewDeptName('');
     } catch (err) {
       console.error('Create department failed:', err);
-      alert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถเพิ่มแผนกได้' : 'Could not add department'));
+      showAlert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถเพิ่มแผนกได้' : 'Could not add department'));
     } finally {
       setSavingDept(false);
     }
@@ -549,7 +561,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
       setShowReopenConfirm(false);
     } catch (err) {
       console.error('Reopen sheet failed:', err);
-      alert(lang === 'TH' ? 'ไม่สามารถยกเลิกการยืนยันได้' : 'Could not reopen the sheet');
+      showAlert(lang === 'TH' ? 'ไม่สามารถยกเลิกการยืนยันได้' : 'Could not reopen the sheet');
     }
   };
 
@@ -562,7 +574,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
       downloadBlob(res.data, `BudgetHub_${periodInfo.month}_${periodInfo.year}.${type}`);
     } catch (err) {
       console.error('Export failed:', err);
-      alert(lang === 'TH' ? 'ไม่สามารถสร้างรายงานได้' : 'Could not generate the report');
+      showAlert(lang === 'TH' ? 'ไม่สามารถสร้างรายงานได้' : 'Could not generate the report');
     }
   };
 
@@ -625,7 +637,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
       setActiveDropdownRow(null);
     } catch (err) {
       console.error('Create CC failed:', err);
-      alert(err.response?.data?.error || 'ไม่สามารถเพิ่มศูนย์ต้นทุนใหม่ได้');
+      showAlert(err.response?.data?.error || 'ไม่สามารถเพิ่มศูนย์ต้นทุนใหม่ได้');
     }
   };
 
@@ -673,9 +685,10 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-1 max-w-md mx-auto">
             <input
+              ref={deptNameInputRef}
               type="text"
               value={newDeptName}
-              onChange={(e) => setNewDeptName(e.target.value)}
+              onChange={(e) => { setNewDeptName(e.target.value); if (deptHint) setDeptHint(''); }}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateDept(); } }}
               placeholder={lang === 'TH' ? 'เช่น บัญชี' : 'e.g. Accounting'}
               className="glass-input w-full text-sm font-semibold"
@@ -683,13 +696,16 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
             />
             <button
               onClick={handleCreateDept}
-              disabled={savingDept || !newDeptName.trim()}
+              disabled={savingDept}
               className="glass-btn-primary text-sm font-bold w-full sm:w-auto shrink-0 disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
               <span>{t.addDept}</span>
             </button>
           </div>
+          {deptHint && (
+            <p className="text-xs font-bold text-rose-500 -mt-2">{deptHint}</p>
+          )}
         </div>
       </div>
     );
@@ -770,7 +786,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
               {user.role !== 'viewer' && (
                 <>
                   <button
-                    onClick={() => { setNewDeptName(''); setShowAddDept(true); }}
+                    onClick={() => { setNewDeptName(''); setDeptHint(''); setShowAddDept(true); }}
                     className="p-2.5 bg-slate-50 hover:bg-[var(--color-primary-bg-light)] hover:text-[var(--color-primary)] border border-slate-200 rounded-xl cursor-pointer transition"
                     title={t.addDept}
                   >
@@ -1221,14 +1237,18 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                   {lang === 'TH' ? 'ชื่อแผนก' : 'Department Name'}
                 </label>
                 <input
+                  ref={deptNameInputRef}
                   type="text"
                   value={newDeptName}
-                  onChange={(e) => setNewDeptName(e.target.value)}
+                  onChange={(e) => { setNewDeptName(e.target.value); if (deptHint) setDeptHint(''); }}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateDept(); } }}
                   placeholder={lang === 'TH' ? 'เช่น บัญชี' : 'e.g. Accounting'}
                   className="glass-input w-full text-sm font-semibold"
                   autoFocus
                 />
+                {deptHint && (
+                  <p className="text-xs font-bold text-rose-500 mt-2">{deptHint}</p>
+                )}
               </div>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setShowAddDept(false)} className="glass-btn-secondary text-sm font-bold">
@@ -1237,7 +1257,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                 <button
                   type="button"
                   onClick={handleCreateDept}
-                  disabled={savingDept || !newDeptName.trim()}
+                  disabled={savingDept}
                   className="glass-btn-primary text-sm font-bold disabled:opacity-50"
                 >
                   {lang === 'TH' ? 'บันทึกข้อมูล' : 'Save'}
@@ -1322,7 +1342,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                     setPeriod(prev => ({ ...prev, status: 'closed' }));
                   } catch (err) {
                     console.error(err);
-                    alert('ไม่สามารถยืนยันแผ่นงานได้');
+                    showAlert('ไม่สามารถยืนยันแผ่นงานได้');
                   }
                 }}
                 className="px-5 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-bold text-xs rounded-xl transition w-full"
@@ -1360,7 +1380,7 @@ function ManageDepartmentsModal({ departments, lang, onClose, onReload }) {
       cancelEdit();
     } catch (err) {
       console.error('Rename department failed:', err);
-      alert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถบันทึกได้' : 'Could not save'));
+      showAlert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถบันทึกได้' : 'Could not save'));
     } finally {
       setBusy(false);
     }
@@ -1369,20 +1389,24 @@ function ManageDepartmentsModal({ departments, lang, onClose, onReload }) {
   const confirmDelete = async () => {
     const d = deptToDelete;
     if (!d) return;
+    // Close the confirm dialog immediately, like every other delete flow in
+    // the app. Previously this only closed on success, so a blocked delete
+    // (department still has data) left two stacked overlays on screen —
+    // looked frozen until the user noticed they had to click Cancel.
+    setDeptToDelete(null);
     setBusy(true);
     try {
       await api.delete(`/departments/${d.id}`);
       await onReload();
-      setDeptToDelete(null);
     } catch (err) {
       console.error('Delete department failed:', err);
       // A department that still has budget data cannot be deleted.
       if (err.response?.data?.code === 'HAS_DATA') {
-        alert(lang === 'TH'
+        showAlert(lang === 'TH'
           ? 'ไม่สามารถลบแผนกได้ เนื่องจากยังมีข้อมูลงบประมาณอยู่ กรุณาลบข้อมูล/แผ่นงานของแผนกนี้ก่อน แล้วจึงลบแผนกได้'
           : 'This department cannot be deleted because it still has budget data. Remove its data / sheets first, then delete it.');
       } else {
-        alert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถลบแผนกได้' : 'Could not delete department'));
+        showAlert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถลบแผนกได้' : 'Could not delete department'));
       }
     } finally {
       setBusy(false);

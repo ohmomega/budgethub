@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
+import { showAlert } from '../showAlert';
 import {
   Plus,
   Search,
@@ -66,6 +67,10 @@ export default function DepartmentsList({ user, lang }) {
   const [deptToDelete, setDeptToDelete] = useState(null);
   const [editingDept, setEditingDept] = useState(null);
   const [form, setForm] = useState({ dept_name: '', is_active: true });
+  // Inline hint shown when Save is pressed with an empty name, so the button
+  // never looks like it "does nothing".
+  const [formHint, setFormHint] = useState('');
+  const nameInputRef = useRef(null);
 
   const t = dict[lang];
 
@@ -88,18 +93,25 @@ export default function DepartmentsList({ user, lang }) {
   const handleOpenCreate = () => {
     setEditingDept(null);
     setForm({ dept_name: '', is_active: true });
+    setFormHint('');
     setShowModal(true);
   };
 
   const handleOpenEdit = (d) => {
     setEditingDept(d);
     setForm({ dept_name: d.dept_name, is_active: d.is_active });
+    setFormHint('');
     setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.dept_name.trim()) return;
+    if (!form.dept_name.trim()) {
+      setFormHint(lang === 'TH' ? 'กรุณากรอกชื่อแผนกก่อน' : 'Please enter a department name first');
+      if (nameInputRef.current) nameInputRef.current.focus();
+      return;
+    }
+    setFormHint('');
     try {
       if (editingDept) {
         await api.patch(`/departments/${editingDept.id}`, {
@@ -114,7 +126,7 @@ export default function DepartmentsList({ user, lang }) {
       fetchDepartments();
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || (lang === 'TH' ? 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' : 'Failed to save'));
+      showAlert(err.response?.data?.error || (lang === 'TH' ? 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' : 'Failed to save'));
     }
   };
 
@@ -122,14 +134,14 @@ export default function DepartmentsList({ user, lang }) {
     try {
       const res = await api.delete(`/departments/${id}`);
       await fetchDepartments();
-      alert(res.data?.message ? t.deleteSuccess : t.deleteSuccess);
+      showAlert(res.data?.message ? t.deleteSuccess : t.deleteSuccess);
     } catch (err) {
       console.error(err);
       // A department that still has budget data is refused by the backend.
       if (err.response?.data?.code === 'HAS_DATA') {
-        alert(t.deleteHasData);
+        showAlert(t.deleteHasData);
       } else {
-        alert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถลบแผนกได้' : 'Could not delete department'));
+        showAlert(err.response?.data?.error || (lang === 'TH' ? 'ไม่สามารถลบแผนกได้' : 'Could not delete department'));
       }
     }
   };
@@ -141,7 +153,7 @@ export default function DepartmentsList({ user, lang }) {
       setDepartments(prev => prev.map(item => item.id === d.id ? { ...item, is_active: updatedStatus } : item));
     } catch (err) {
       console.error(err);
-      alert(lang === 'TH' ? 'ไม่สามารถเปลี่ยนสถานะได้' : 'Could not change status');
+      showAlert(lang === 'TH' ? 'ไม่สามารถเปลี่ยนสถานะได้' : 'Could not change status');
     }
   };
 
@@ -260,14 +272,17 @@ export default function DepartmentsList({ user, lang }) {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">{t.fieldName}</label>
                 <input
+                  ref={nameInputRef}
                   type="text"
                   value={form.dept_name}
-                  onChange={(e) => setForm(prev => ({ ...prev, dept_name: e.target.value }))}
+                  onChange={(e) => { setForm(prev => ({ ...prev, dept_name: e.target.value })); if (formHint) setFormHint(''); }}
                   className="glass-input w-full text-sm font-semibold"
                   placeholder={t.examplePlaceholder}
                   autoFocus
-                  required
                 />
+                {formHint && (
+                  <p className="text-xs font-bold text-rose-500 mt-2">{formHint}</p>
+                )}
               </div>
 
               {editingDept && (

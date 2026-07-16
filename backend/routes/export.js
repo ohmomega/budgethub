@@ -97,11 +97,14 @@ router.get('/xlsx', verifyToken, async (req, res) => {
 
     // Styles definitions
     const fontName = 'Segoe UI';
+    // Clear, visible black grid lines (the classic Excel "All Borders" look) so
+    // the exported table is easy to read. Previously these were near-invisible
+    // light grey (FFD3D3D3).
     const borderStyle = {
-      top: { style: 'thin', color: { argb: 'FFD3D3D3' } },
-      left: { style: 'thin', color: { argb: 'FFD3D3D3' } },
-      bottom: { style: 'thin', color: { argb: 'FFD3D3D3' } },
-      right: { style: 'thin', color: { argb: 'FFD3D3D3' } }
+      top: { style: 'thin', color: { argb: 'FF000000' } },
+      left: { style: 'thin', color: { argb: 'FF000000' } },
+      bottom: { style: 'thin', color: { argb: 'FF000000' } },
+      right: { style: 'thin', color: { argb: 'FF000000' } }
     };
     const headerFill = {
       type: 'pattern',
@@ -581,10 +584,10 @@ router.get('/yearly-xlsx', verifyToken, async (req, res) => {
     const { months, yearTotal, yearCut } = await getYearlyData(year, deptId);
 
     const border = {
-      top: { style: 'thin', color: { argb: 'FFD3D3D3' } },
-      left: { style: 'thin', color: { argb: 'FFD3D3D3' } },
-      bottom: { style: 'thin', color: { argb: 'FFD3D3D3' } },
-      right: { style: 'thin', color: { argb: 'FFD3D3D3' } }
+      top: { style: 'thin', color: { argb: 'FF000000' } },
+      left: { style: 'thin', color: { argb: 'FF000000' } },
+      bottom: { style: 'thin', color: { argb: 'FF000000' } },
+      right: { style: 'thin', color: { argb: 'FF000000' } }
     };
 
     const workbook = new ExcelJS.Workbook();

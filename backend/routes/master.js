@@ -299,10 +299,24 @@ router.patch('/cost-centers/:id', verifyToken, isAdmin, async (req, res) => {
   }
 });
 // @route   DELETE /api/cost-centers/:id
-// @desc    Delete a cost center (soft delete, Admin only)
+// @desc    Delete a cost center (soft delete, Admin only). A cost center that
+//          still has budget data cannot be deleted — same rule as departments —
+//          otherwise rows in an open sheet would keep pointing at a vanished
+//          cost center.
 router.delete('/cost-centers/:id', verifyToken, isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
+    const entriesRes = await db.query(
+      'SELECT COUNT(*) AS n FROM expense_entries WHERE cost_center_id = $1 AND is_deleted = false',
+      [id]
+    );
+    if (parseInt(entriesRes.rows[0].n, 10) > 0) {
+      return res.status(400).json({
+        error: 'Cannot delete: this cost center still has budget data.',
+        code: 'HAS_DATA',
+      });
+    }
+
     const result = await db.query('UPDATE cost_centers SET is_deleted = true WHERE id = $1 RETURNING *', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Cost center not found' });
