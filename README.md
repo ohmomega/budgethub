@@ -5,7 +5,7 @@
 # BudgetHub
 
 **Offline desktop app for departmental budget management — a friendly replacement for Excel.**
-**โปรแกรมเดสก์ท็อปบริหารงบประมาณรายจ่ายแผนก (กฟส./กฟย.) ใช้งานออฟไลน์ แทนการทำใน Excel**
+**โปรแกรมเดสก์ท็อปบริหารงบประมาณรายจ่ายแผนก ใช้งานออฟไลน์ แทนการทำใน Excel**
 
 [![Download](https://img.shields.io/badge/⬇_Download-Windows_Installer-863bff)](https://github.com/ohmomega/budgethub/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
