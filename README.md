@@ -42,7 +42,7 @@ All data is stored locally in an embedded SQLite file.
 
 ## Features
 
-- 📊 **Dashboard** — totals, budget-cut amounts, a monthly comparison chart (net total vs. budget cuts), and cost-center breakdown.
+- 📊 **Dashboard** — totals, budget-cut amounts, and a comparison chart you can scope to the whole year (default), just this month, or any custom set of months; the title switches between "Monthly" and "Yearly" comparison automatically, and the cost-center breakdown follows the same time range.
 - 📈 **Yearly summary report** — a full-year window with a two-bar chart per month (net total + budget cut), exportable to PDF, JPG, or Excel.
 - 🧾 **Spreadsheet-style budget entry** — add/edit/delete line items with auto-save; press Enter to confirm a cell. The table fits the window (no horizontal scrolling) and rows can be dragged or moved to reorder.
 - 🏢 **Departments** — name-based departments (codes are generated automatically). Manage them from a dedicated page or right inside a sheet. A department that still has budget data can't be deleted until its data is removed.
@@ -51,7 +51,8 @@ All data is stored locally in an embedded SQLite file.
 - 🔢 **Fractional row insertion** — insert a row between any two rows without disturbing others.
 - 💵 **Server-side calculations** — 7% VAT and totals are always computed by the backend for safety.
 - 📜 **Audit logs** — every create/update/delete is recorded with old vs. new values.
-- 📤 **Export** — export a sheet to Excel (`.xlsx`, formulas preserved) or PDF, and the yearly report to PDF / JPG / Excel.
+- 📤 **Export** — export a sheet to Excel (`.xlsx`, formulas preserved) or PDF, combine several months into one Excel workbook (a summary page + one detail page per month) from the Budget Sheets list, and export the yearly report to PDF / JPG / Excel.
+- 🔐 **Backup & Restore** — download an encrypted, tamper-evident `.bhbackup` file any time and restore from one later (only genuine, unmodified BudgetHub backups are accepted); the app also keeps a 2-copy rotating backup automatically on every close, with no setup required.
 - 🆘 **Built-in help & guided setup** — an in-app Help page plus a first-run setup checklist walk new users through departments, cost centers, and sheets.
 - 👥 **Single-user** — the desktop build has **no login screen**; it always runs locally as the built-in admin user.
 
@@ -70,7 +71,7 @@ All data is stored locally in an embedded SQLite file.
 
 ## Download & install (for users)
 
-1. Go to the **[Releases page](https://github.com/ohmomega/budgethub/releases/latest)** and download **`BudgetHub Setup 1.0.3.exe`**.
+1. Go to the **[Releases page](https://github.com/ohmomega/budgethub/releases/latest)** and download **`BudgetHub Setup 1.0.4.exe`**.
 2. Run the installer and follow the wizard (you can choose the install folder).
 3. Launch **BudgetHub** from the Start Menu or Desktop shortcut.
 
@@ -87,7 +88,7 @@ here is how to get past each warning:
 - Click the **•••** (more) button next to the download, then choose **Keep**.
 - If asked again, choose **Keep anyway** / **Show more → Keep anyway**.
 
-**2) When you run `BudgetHub.Setup.1.0.3.exe` (blue "Windows protected your PC" box):**
+**2) When you run `BudgetHub.Setup.1.0.4.exe` (blue "Windows protected your PC" box):**
 - Click the **More info** link.
 - Then click the **Run anyway** button that appears.
 
@@ -116,8 +117,9 @@ The database is created automatically on first launch at:
 C:\Users\<you>\AppData\Roaming\BudgetHub\budgethub.db
 ```
 
-- **Back up** that single file to back up all your data.
-- **Reset to a fresh database** by deleting that file and relaunching the app.
+- **Back up your data** with the in-app **Backup & Restore** page (an encrypted, tamper-evident `.bhbackup` file you can save anywhere). The app also keeps its own 2-copy rotating backup automatically, in `...\BudgetHub\backups\`, every time you close it — no setup required.
+- Without going through the app at all, copying `budgethub.db` (plus `budgethub.db-wal` / `budgethub.db-shm` if present) is also a complete backup of your data.
+- **Reset to a fresh database** by deleting `budgethub.db` and relaunching the app.
 
 ## Build from source (for developers)
 
@@ -139,7 +141,7 @@ npm start
 
 # 5. Build the distributable Windows installer
 npm run dist
-#  -> output: dist_electron\BudgetHub Setup 1.0.3.exe
+#  -> output: dist_electron\BudgetHub Setup 1.0.4.exe
 ```
 
 ### Project structure
@@ -171,7 +173,7 @@ BudgetHub เป็น **โปรแกรมเดสก์ท็อปบน 
 
 ## ฟีเจอร์หลัก
 
-- 📊 **แดชบอร์ด** — ยอดรวม, ยอดงบที่ตัด, กราฟเปรียบเทียบรายเดือน (ยอดรวมสุทธิ เทียบกับงบที่ตัด) และสัดส่วนตามศูนย์ต้นทุน
+- 📊 **แดชบอร์ด** — ยอดรวม, ยอดงบที่ตัด, กราฟเปรียบเทียบที่เลือกช่วงเวลาได้ (ทั้งปี — ค่าเริ่มต้น / เดือนนี้ / กำหนดเองหลายเดือน) หัวข้อกราฟจะสลับเป็น "รายเดือน"/"รายปี" ให้เองตามที่เลือก และสัดส่วนตามศูนย์ต้นทุนก็รวมข้อมูลตามช่วงเวลาเดียวกัน
 - 📈 **รายงานสรุปรายปี** — หน้าต่างรายงานทั้งปี แสดงกราฟ 2 แท่งต่อเดือน (ยอดรวมสุทธิ + งบที่ตัด) ส่งออกเป็น PDF, JPG หรือ Excel ได้
 - 🧾 **กรอกงบแบบตาราง** — เพิ่ม/แก้ไข/ลบ รายการ พร้อมบันทึกอัตโนมัติ กด Enter เพื่อยืนยันช่องได้ ตารางพอดีหน้าจอ (ไม่มีแถบเลื่อนแนวนอน) และลาก/เลื่อนแถวเพื่อจัดลำดับได้
 - 🏢 **แผนก** — แผนกใช้ชื่อเป็นหลัก (สร้างรหัสให้อัตโนมัติ) จัดการได้ทั้งที่หน้า "จัดการแผนก" และจากในแผ่นงาน แผนกที่ยังมีข้อมูลงบประมาณอยู่จะลบไม่ได้จนกว่าจะลบข้อมูลนั้นก่อน
@@ -180,7 +182,8 @@ BudgetHub เป็น **โปรแกรมเดสก์ท็อปบน 
 - 🔢 **แทรกแถวกลางตาราง** — แทรกแถวระหว่างแถวใดก็ได้โดยไม่กระทบลำดับแถวอื่น
 - 💵 **คำนวณฝั่งเซิร์ฟเวอร์** — ภาษี 7% และราคารวมถูกคำนวณโดย backend เสมอเพื่อความปลอดภัยของตัวเลข
 - 📜 **บันทึกการแก้ไข (Audit Log)** — บันทึกทุกการเพิ่ม/แก้ไข/ลบ พร้อมค่าก่อน–หลัง
-- 📤 **ส่งออกไฟล์** — ส่งออกแผ่นงานเป็น Excel (`.xlsx` คงสูตรไว้) หรือ PDF และส่งออกรายงานรายปีเป็น PDF / JPG / Excel
+- 📤 **ส่งออกไฟล์** — ส่งออกแผ่นงานเป็น Excel (`.xlsx` คงสูตรไว้) หรือ PDF, รวมหลายเดือนเป็น Excel ไฟล์เดียว (หน้าสรุป + รายละเอียดแต่ละเดือน) จากหน้า "แผ่นงบประมาณ" และส่งออกรายงานรายปีเป็น PDF / JPG / Excel
+- 🔐 **สำรอง & กู้คืนข้อมูล** — ดาวน์โหลดไฟล์สำรองข้อมูลแบบเข้ารหัสและตรวจสอบการแก้ไขได้ (`.bhbackup`) เมื่อไหร่ก็ได้ แล้วกู้คืนภายหลัง (รับเฉพาะไฟล์ของ BudgetHub ที่ไม่ถูกแก้ไขเท่านั้น) พร้อมสำรองข้อมูลอัตโนมัติแบบหมุน 2 ไฟล์ทุกครั้งที่ปิดโปรแกรม โดยไม่ต้องตั้งค่าอะไรเพิ่ม
 - 🆘 **คู่มือในตัวและตัวช่วยตั้งค่าเริ่มต้น** — มีหน้า "คู่มือการใช้งาน" ในโปรแกรม พร้อมเช็คลิสต์ตั้งค่าครั้งแรก แนะนำการสร้างแผนก ศูนย์ต้นทุน และแผ่นงาน
 - 👥 **ผู้ใช้คนเดียว** — เวอร์ชันเดสก์ท็อป **ไม่มีหน้าล็อกอิน** ใช้งานในเครื่องในฐานะผู้ดูแล (admin) เสมอ
 
@@ -199,7 +202,7 @@ BudgetHub เป็น **โปรแกรมเดสก์ท็อปบน 
 
 ## ดาวน์โหลดและติดตั้ง (สำหรับผู้ใช้งาน)
 
-1. ไปที่ **[หน้า Releases](https://github.com/ohmomega/budgethub/releases/latest)** แล้วดาวน์โหลด **`BudgetHub Setup 1.0.3.exe`**
+1. ไปที่ **[หน้า Releases](https://github.com/ohmomega/budgethub/releases/latest)** แล้วดาวน์โหลด **`BudgetHub Setup 1.0.4.exe`**
 2. เปิดไฟล์ติดตั้งและทำตามขั้นตอน (เลือกโฟลเดอร์ติดตั้งได้)
 3. เปิดโปรแกรม **BudgetHub** จาก Start Menu หรือไอคอนบนหน้าจอ
 
@@ -215,7 +218,7 @@ BudgetHub เป็นโปรแกรมฟรีและโอเพนซ�
 - กดปุ่ม **•••** (จุดสามจุด) ข้างไฟล์ที่ดาวน์โหลด แล้วเลือก **Keep / เก็บไฟล์ไว้**
 - หากถามซ้ำ ให้เลือก **Keep anyway / เก็บไว้อยู่ดี**
 
-**2) ตอนเปิดไฟล์ `BudgetHub.Setup.1.0.3.exe` (กล่องสีน้ำเงิน "Windows protected your PC"):**
+**2) ตอนเปิดไฟล์ `BudgetHub.Setup.1.0.4.exe` (กล่องสีน้ำเงิน "Windows protected your PC"):**
 - กดลิงก์ **More info**
 - จากนั้นกดปุ่ม **Run anyway** ที่ปรากฏขึ้น
 
@@ -235,8 +238,9 @@ BudgetHub เป็นโปรแกรมฟรีและโอเพนซ�
 C:\Users\<ชื่อผู้ใช้>\AppData\Roaming\BudgetHub\budgethub.db
 ```
 
-- **สำรองข้อมูล** โดยคัดลอกไฟล์นี้ไฟล์เดียว
-- **รีเซ็ตเป็นฐานข้อมูลใหม่** โดยลบไฟล์นี้แล้วเปิดโปรแกรมใหม่
+- **สำรองข้อมูล** ผ่านหน้า **สำรอง & กู้คืนข้อมูล** ในโปรแกรม (ได้ไฟล์ `.bhbackup` ที่เข้ารหัสและตรวจสอบการแก้ไขได้ เก็บไว้ที่ไหนก็ได้) นอกจากนี้โปรแกรมยังสำรองข้อมูลอัตโนมัติแบบหมุน 2 ไฟล์ให้เองที่ `...\BudgetHub\backups\` ทุกครั้งที่ปิดโปรแกรม โดยไม่ต้องตั้งค่าอะไรเพิ่ม
+- หรือจะไม่ผ่านโปรแกรมเลยก็ได้ แค่คัดลอกไฟล์ `budgethub.db` (พร้อม `budgethub.db-wal` / `budgethub.db-shm` ถ้ามี) ก็ถือเป็นข้อมูลสำรองที่ครบถ้วนแล้ว
+- **รีเซ็ตเป็นฐานข้อมูลใหม่** โดยลบไฟล์ `budgethub.db` แล้วเปิดโปรแกรมใหม่
 
 ## พัฒนาต่อจากซอร์สโค้ด (สำหรับนักพัฒนา)
 
@@ -258,7 +262,7 @@ npm start
 
 # 5. สร้างไฟล์ติดตั้งสำหรับแจกจ่าย
 npm run dist
-#  -> ได้ไฟล์: dist_electron\BudgetHub Setup 1.0.3.exe
+#  -> ได้ไฟล์: dist_electron\BudgetHub Setup 1.0.4.exe
 ```
 
 ### โครงสร้างโปรเจค

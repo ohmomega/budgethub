@@ -1,7 +1,7 @@
 {
   "name": "budgethub",
   "productName": "BudgetHub",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "BudgetHub — ระบบบริหารงบประมาณรายจ่ายแผนก (offline desktop app)",
   "author": "ohmomega",
   "license": "MIT",

@@ -17,7 +17,10 @@ import {
   ChevronDown,
   Lightbulb,
   ArrowRight,
-  MousePointerClick
+  MousePointerClick,
+  DatabaseBackup,
+  ShieldCheck,
+  RotateCcw
 } from 'lucide-react';
 
 // A self-contained, always-available user guide. Written so a first-time,
@@ -36,6 +39,7 @@ const L = {
       cc: 'การจัดการศูนย์ต้นทุน',
       grid: 'การกรอกข้อมูลในแผ่นงบประมาณ',
       dashboard: 'แผงควบคุมและรายงาน',
+      backup: 'สำรอง & กู้คืนข้อมูล',
       faq: 'คำถามที่พบบ่อย',
     },
     startIntro: 'ครั้งแรกที่เปิดโปรแกรม ให้ทำ 3 ขั้นตอนนี้ตามลำดับ จากนั้นก็เริ่มกรอกงบประมาณได้เลย',
@@ -71,15 +75,29 @@ const L = {
     ],
     gridTip: 'ตารางถูกปรับให้พอดีหน้าจอแล้ว ไม่ต้องเลื่อนซ้าย-ขวา — กด Enter เพื่อยืนยันแต่ละช่องได้รวดเร็ว',
     dashboardSteps: [
-      'หน้า "แผงควบคุม" แสดงยอดรวมสุทธิและยอดตัดงบของงวดล่าสุด พร้อมกราฟเปรียบเทียบรายเดือน',
+      'หน้า "แผงควบคุม" แสดงยอดรวมสุทธิและยอดตัดงบของงวดล่าสุด พร้อมกราฟเปรียบเทียบ',
+      'เลือกช่วงเวลาของกราฟได้ที่ปุ่ม "ทั้งปี" (ค่าเริ่มต้น) / "เดือนนี้" / "กำหนดเอง" — ถ้าเลือก "กำหนดเอง" จะเลือกได้หลายเดือนแบบไม่ต่อเนื่อง เช่น ก.พ., มิ.ย., ส.ค.',
+      'หัวข้อกราฟจะเปลี่ยนเป็น "การเปรียบเทียบรายเดือน" เมื่อเลือกเดือนเดียว หรือ "การเปรียบเทียบรายปี" เมื่อเลือกทั้งปีหรือหลายเดือน',
+      'กราฟ "สัดส่วนตามศูนย์ต้นทุน" ด้านขวาจะรวมข้อมูลตามช่วงเวลาที่เลือกไว้เช่นกัน ไม่ได้ยึดติดแค่เดือนปัจจุบันเหมือนเดิม',
       'กด "ดูรายงานสรุป" เพื่อดูกราฟทั้งปีแบบ 2 แท่งต่อเดือน — ยอดรวมสุทธิ (สีเขียว) และ งบทำการที่ตัด (สีชมพู)',
       'ส่งออกเป็นไฟล์ PDF, Excel หรือรูปภาพ (JPG) ได้ โดยกราฟในไฟล์ PDF และ JPG จะแสดง 2 แท่งเหมือนบนหน้าจอ',
-      'ในแต่ละแผ่นงบประมาณ กดปุ่ม "ส่งออก PDF" หรือ "ส่งออก Excel" เพื่อบันทึกไฟล์รายงาน',
+      'ในแต่ละแผ่นงบประมาณ กดปุ่ม "ส่งออก PDF" หรือ "ส่งออก Excel" เพื่อบันทึกไฟล์รายงาน หรือที่หน้า "แผ่นงบประมาณ" ติ๊กเลือกได้หลายเดือน แล้วกด "ส่งออกที่เลือกเป็น Excel" เพื่อรวมเป็นไฟล์เดียว (หน้าสรุป + รายละเอียดของแต่ละเดือนที่เลือก)',
     ],
+    backupSteps: [
+      'ไปที่เมนู "สำรอง & กู้คืนข้อมูล" ทางแถบด้านซ้าย',
+      'กด "ดาวน์โหลดไฟล์สำรองข้อมูล" เพื่อเก็บสำเนาข้อมูลทั้งหมด (ทุกแผนก ทุกแผ่นงบประมาณ) เป็นไฟล์เดียว — ไฟล์จะถูกบันทึกไว้ที่โฟลเดอร์ดาวน์โหลด (Downloads) ของเครื่องโดยอัตโนมัติ ย้ายไปเก็บที่อื่นได้ตามต้องการ เช่น ไดรฟ์ภายนอก',
+      'เมื่อจะกู้คืนข้อมูล กด "เลือกไฟล์เพื่อกู้คืน" แล้วเลือกไฟล์ .bhbackup ที่เคยสำรองไว้ ระบบจะให้ยืนยันก่อนเสมอ เพราะการกู้คืนจะแทนที่ข้อมูลปัจจุบันทั้งหมดและย้อนกลับไม่ได้',
+      'กู้คืนสำเร็จแล้ว โปรแกรมจะปิดและเปิดขึ้นใหม่ให้เองโดยอัตโนมัติ',
+    ],
+    backupAutoNote: 'นอกจากนี้ ทุกครั้งที่ปิดโปรแกรม ระบบจะสำรองข้อมูลให้อัตโนมัติเสมอ โดยเก็บไว้ 2 ไฟล์ล่าสุด (ไฟล์ปัจจุบันและไฟล์ก่อนหน้า) ไว้ในโฟลเดอร์ข้อมูลของโปรแกรมเอง ไม่ต้องกดอะไรเพิ่ม และไม่กินพื้นที่เครื่องเพิ่มขึ้นเรื่อย ๆ',
+    backupTip: 'ไฟล์สำรองข้อมูลถูกเข้ารหัสและมีการตรวจสอบว่าไม่ถูกแก้ไข ระบบจะกู้คืนให้เฉพาะไฟล์ .bhbackup ของ BudgetHub เท่านั้น ไฟล์ประเภทอื่น หรือไฟล์ที่ถูกแก้ไข/เสียหาย จะถูกปฏิเสธทันทีเพื่อความปลอดภัยของข้อมูล',
     faq: [
       { q: 'กดปุ่ม "เพิ่มแถว" แล้วไม่มีอะไรเกิดขึ้น?', a: 'เป็นเพราะยังไม่มีแผนกในแผ่นงานนี้ ให้พิมพ์ชื่อแผนกในช่องที่ปรากฏแล้วกดเพิ่ม จากนั้นจึงกรอกรายการได้' },
       { q: 'ยืนยันแผ่นงานไปแล้ว แก้ไขได้ไหม?', a: 'ได้ กดปุ่ม "ยกเลิกการยืนยัน" ที่มุมขวาบนของแผ่นงาน แผ่นงานจะกลับมาเป็นแบบร่างและแก้ไขได้อีกครั้ง' },
       { q: 'แก้ไขรหัสศูนย์ต้นทุนได้ไหม?', a: 'ได้ กดไอคอนดินสอที่ศูนย์ต้นทุนนั้น แล้วแก้รหัสได้เลย (ต้องไม่ซ้ำกับรหัสอื่น)' },
+      { q: 'ส่งออกหลายเดือนพร้อมกันได้ไหม?', a: 'ได้ ที่หน้า "แผ่นงบประมาณ" ติ๊กเลือกได้หลายเดือน แล้วกด "ส่งออกที่เลือกเป็น Excel" จะได้ไฟล์เดียวที่มีหน้าสรุปรวม ตามด้วยรายละเอียดของแต่ละเดือนที่เลือก' },
+      { q: 'ไฟล์สำรองข้อมูลอัตโนมัติเก็บไว้ที่ไหน?', a: 'อยู่ในโฟลเดอร์ข้อมูลของโปรแกรมเอง (สร้างให้อัตโนมัติ ไม่ต้องเข้าไปยุ่ง) ถ้าต้องการไฟล์สำรองที่เลือกตำแหน่งเก็บเองได้ ให้ใช้ปุ่ม "ดาวน์โหลดไฟล์สำรองข้อมูล" ที่หน้า "สำรอง & กู้คืนข้อมูล" แทน ไฟล์จะไปอยู่ในโฟลเดอร์ดาวน์โหลด (Downloads)' },
+      { q: 'กู้คืนไฟล์อื่นที่ไม่ใช่ของ BudgetHub ได้ไหม?', a: 'ไม่ได้ ระบบตรวจสอบไฟล์ก่อนกู้คืนเสมอ ถ้าไม่ใช่ไฟล์ .bhbackup ของ BudgetHub หรือไฟล์ถูกแก้ไข/เสียหาย จะถูกปฏิเสธทันทีเพื่อความปลอดภัยของข้อมูล' },
       { q: 'ข้อมูลเก็บไว้ที่ไหน?', a: 'ข้อมูลทั้งหมดถูกเก็บในเครื่องของคุณ (ออฟไลน์) ไม่ได้ส่งขึ้นอินเทอร์เน็ต' },
     ],
     goNow: 'ไปที่หน้านี้',
@@ -96,6 +114,7 @@ const L = {
       cc: 'Managing cost centers',
       grid: 'Filling in a budget sheet',
       dashboard: 'Dashboard & reports',
+      backup: 'Backup & Restore',
       faq: 'Frequently asked questions',
     },
     startIntro: 'The first time you open the app, do these 3 steps in order, then you can start entering budgets.',
@@ -131,15 +150,29 @@ const L = {
     ],
     gridTip: 'The table now fits your screen — no left/right scrolling. Press Enter to confirm each cell quickly.',
     dashboardSteps: [
-      'The "Dashboard" shows the latest period’s net and deducted totals plus a monthly comparison chart.',
+      'The "Dashboard" shows the latest period’s net and deducted totals plus a comparison chart.',
+      'Pick the chart\'s time range with "Whole Year" (default) / "This Month" / "Custom" — Custom lets you pick any set of months, e.g. Feb, Jun, Aug.',
+      'The chart title switches to "Monthly Comparison" when exactly one month is selected, or "Yearly Comparison" for the whole year or several months.',
+      'The "Allocation by Cost Center" panel on the right follows the same selected time range too, not just the current month like before.',
       'Click "View Summary Report" for the full-year chart with two bars per month — Net Total (teal) and Budget Cut (pink).',
       'Export it as PDF, Excel or an image (JPG) — the PDF and JPG charts show the same two bars as on screen.',
-      'Inside any sheet, use "Export PDF" or "Export Excel" to save a report file.',
+      'Inside any sheet, use "Export PDF" or "Export Excel" to save a report file — or on the "Budget Sheets" page, tick several months and click "Export Selected (Excel)" to combine them into one file (a summary page + one detail page per selected month).',
     ],
+    backupSteps: [
+      'Open the "Backup & Restore" menu on the left sidebar.',
+      'Click "Download Backup File" to save a copy of all your data (every department, every budget sheet) as a single file — it saves to your Downloads folder automatically, and you can move it anywhere else afterwards, such as an external drive.',
+      'To restore, click "Choose File to Restore" and pick a .bhbackup file you saved earlier. You\'ll always be asked to confirm first, since restoring replaces all current data and cannot be undone.',
+      'Once restored, the app closes and reopens automatically.',
+    ],
+    backupAutoNote: 'On top of that, every time you close the app it automatically saves a backup, keeping the 2 most recent copies (the current one and the one before it) in the app\'s own data folder. No action needed, and it never uses more than 2 backup files\' worth of space.',
+    backupTip: 'Backup files are encrypted and self-verifying. Only genuine BudgetHub .bhbackup files are accepted for restore — any other file type, or one that has been modified or corrupted, is rejected immediately to protect your data.',
     faq: [
       { q: 'I clicked "Add Row" and nothing happened?', a: 'There are no departments in this sheet yet. Type a department name in the box shown and add it, then you can enter rows.' },
       { q: 'I finalized a sheet — can I still edit it?', a: 'Yes. Click "Reopen" at the top right of the sheet; it returns to draft and becomes editable again.' },
       { q: 'Can I edit a cost center code?', a: 'Yes. Click the pencil icon on that cost center and change the code (it must not duplicate another one).' },
+      { q: 'Can I export several months at once?', a: 'Yes. On the "Budget Sheets" page, tick several months and click "Export Selected (Excel)" — you get one file with a summary page followed by full details for each selected month.' },
+      { q: 'Where is the automatic backup stored?', a: "In the app's own data folder (created automatically — you don't need to touch it). If you want a backup file you can choose where to keep, use the \"Download Backup File\" button on the Backup & Restore page instead; that one goes to your Downloads folder." },
+      { q: 'Can I restore a file that isn\'t from BudgetHub?', a: 'No. Every file is checked before restoring — anything that isn\'t a genuine BudgetHub .bhbackup file, or has been modified or corrupted, is rejected immediately to protect your data.' },
       { q: 'Where is my data stored?', a: 'Everything is stored locally on your computer (offline). Nothing is sent to the internet.' },
     ],
     goNow: 'Open this page',
@@ -291,7 +324,21 @@ export default function HelpCenter({ lang, onNavigate, onOpenSetup }) {
         </div>
       </Section>
 
-      {/* 6. FAQ */}
+      {/* 6. Backup & Restore */}
+      <Section icon={DatabaseBackup} title={t.sections.backup} action={goBtn('backup')}>
+        <ol className="space-y-2.5">
+          {t.backupSteps.map((s, i) => <Step key={i} n={i + 1}>{s}</Step>)}
+        </ol>
+        <div className="mt-4 flex items-start gap-2.5 bg-slate-50 border border-slate-200 rounded-2xl p-3.5">
+          <RotateCcw className="h-4.5 w-4.5 text-[var(--color-primary)] shrink-0 mt-0.5" />
+          <p className="text-xs text-slate-600 font-semibold leading-relaxed">{t.backupAutoNote}</p>
+        </div>
+        <TipBox label={t.tip}>
+          <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3 w-3" /></span> {t.backupTip}
+        </TipBox>
+      </Section>
+
+      {/* 7. FAQ */}
       <Section icon={HelpCircle} title={t.sections.faq}>
         <div className="divide-y divide-slate-100">
           {t.faq.map((f, i) => <FaqItem key={i} q={f.q} a={f.a} />)}
