@@ -47,7 +47,12 @@ const dict = {
     modalYear: 'เลือกปี (พ.ศ.)',
     cancel: 'ยกเลิก',
     submit: 'สร้างแผ่นงาน',
-    noData: 'ไม่พบข้อมูลแผ่นงบประมาณที่ค้นหา'
+    noData: 'ไม่พบข้อมูลแผ่นงบประมาณที่ค้นหา',
+    selectedCount: (n) => `เลือกไว้ ${n} แผ่น`,
+    exportSelected: 'ส่งออกที่เลือกเป็น Excel',
+    exportSelectedHint: 'รวมเป็นไฟล์เดียว: หน้าสรุป + 1 หน้าต่อเดือนที่เลือก',
+    exportSelectedFailed: 'ไม่สามารถส่งออกแผ่นงบประมาณที่เลือกได้',
+    exportSelectedEmpty: 'กรุณาเลือกแผ่นงบประมาณอย่างน้อย 1 แผ่น'
   },
   EN: {
     title: 'Budget Sheets',
@@ -69,7 +74,12 @@ const dict = {
     modalYear: 'Select Year',
     cancel: 'Cancel',
     submit: 'Create Sheet',
-    noData: 'No matching budget sheets found'
+    noData: 'No matching budget sheets found',
+    selectedCount: (n) => `${n} sheet${n === 1 ? '' : 's'} selected`,
+    exportSelected: 'Export Selected (Excel)',
+    exportSelectedHint: 'One file: a summary page + one page per selected month',
+    exportSelectedFailed: 'Could not export the selected sheets',
+    exportSelectedEmpty: 'Select at least one budget sheet'
   }
 };
 
@@ -91,6 +101,7 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
   
   // Selection
   const [selectedPeriods, setSelectedPeriods] = useState([]);
+  const [exportingSelected, setExportingSelected] = useState(false);
   
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -190,6 +201,32 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
     }
   };
 
+  // Export every selected sheet as one combined Excel workbook: a summary
+  // page followed by one full detail page per selected month.
+  const handleExportSelected = async () => {
+    if (selectedPeriods.length === 0) {
+      showAlert(t.exportSelectedEmpty);
+      return;
+    }
+    const chosen = periods
+      .filter(p => selectedPeriods.includes(p.id))
+      .map(p => ({ month: p.month, year: p.year }));
+
+    setExportingSelected(true);
+    try {
+      const res = await api.post('/export/xlsx/combined', { periods: chosen }, {
+        responseType: 'blob',
+      });
+      const label = chosen.map(p => `${p.month}-${p.year}`).join('_');
+      downloadBlob(res.data, `BudgetHub_combined_${label}.xlsx`);
+    } catch (err) {
+      console.error('Combined export failed:', err);
+      showAlert(t.exportSelectedFailed);
+    } finally {
+      setExportingSelected(false);
+    }
+  };
+
   const formatModified = (p) => {
     const ts = p.last_modified || p.created_at;
     return ts ? new Date(ts).toLocaleString(lang === 'TH' ? 'th-TH' : 'en-GB') : '-';
@@ -238,6 +275,26 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
           />
         </div>
       </div>
+
+      {/* Bulk action bar — appears once at least one sheet is selected */}
+      {selectedPeriods.length > 0 && (
+        <div className="bg-[var(--color-primary-bg-light)] border border-[var(--color-primary-light)] rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-sm font-bold text-slate-800">{t.selectedCount(selectedPeriods.length)}</span>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">{t.exportSelectedHint}</p>
+          </div>
+          <button
+            onClick={handleExportSelected}
+            disabled={exportingSelected}
+            className="glass-btn-primary py-2 px-4 text-sm font-bold disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {exportingSelected
+              ? <Loader2 className="h-4.5 w-4.5 animate-spin" />
+              : <FileSpreadsheet className="h-4.5 w-4.5" />}
+            <span>{t.exportSelected}</span>
+          </button>
+        </div>
+      )}
 
       {/* Sheets List Table */}
       <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">

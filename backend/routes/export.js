@@ -54,26 +54,26 @@ async function getExportData(month, year) {
   return { periodId, departments };
 }
 
-// @route   GET /api/export/xlsx
-// @desc    Export budget sheet as Excel file matching the original format
-router.get('/xlsx', verifyToken, async (req, res) => {
-  const { month, year } = req.query;
+// Net total + budget-cut total for a single period (used by the combined
+// export's summary sheet).
+async function getPeriodTotals(periodId) {
+  const totalsRes = await db.query(
+    `SELECT COALESCE(SUM(total_amount), 0) as total_amount,
+            COALESCE(SUM(CASE WHEN is_budget_cut = true THEN total_amount ELSE 0 END), 0) as budget_cut_total
+     FROM expense_entries WHERE period_id = $1 AND is_deleted = false`,
+    [periodId]
+  );
+  return {
+    totalAmount: parseFloat(totalsRes.rows[0].total_amount),
+    budgetCutTotal: parseFloat(totalsRes.rows[0].budget_cut_total)
+  };
+}
 
-  if (!month || !year) {
-    return res.status(400).json({ error: 'month and year are required' });
-  }
-
-  try {
-    const { periodId, departments } = await getExportData(parseInt(month), parseInt(year));
-
-    if (!periodId) {
-      return res.status(404).json({ error: 'No data found for this period' });
-    }
-
-    await logExport(periodId, 'xlsx', req.user.id);
-
-    const workbook = new ExcelJS.Workbook();
-    const sheetName = `${THAI_MONTHS[parseInt(month)].substring(0, 3)}. ${parseInt(year) + 543}`;
+// Build one worksheet (consolidated + per-department detail tables) for a
+// single month/year into an existing workbook. Shared by the single-sheet
+// export and the multi-period combined export.
+function buildMonthWorksheet(workbook, month, year, departments) {
+    const sheetName = `${THAI_MONTHS[month].substring(0, 3)}. ${year + 543}`;
     const worksheet = workbook.addWorksheet(sheetName);
 
     // Grid options
@@ -93,7 +93,7 @@ router.get('/xlsx', verifyToken, async (req, res) => {
       { key: 'budget_cut', width: 22 }
     ];
 
-    const titleText = `สรุปงบประมาณ เดือน ${THAI_MONTHS[parseInt(month)]} ${parseInt(year) + 543}`;
+    const titleText = `สรุปงบประมาณ เดือน ${THAI_MONTHS[month]} ${year + 543}`;
 
     // Styles definitions
     const fontName = 'Segoe UI';
@@ -304,7 +304,101 @@ router.get('/xlsx', verifyToken, async (req, res) => {
       currentRow += 4; // Add spacing before next section
     }
 
-    // Set Response headers
+    return worksheet;
+}
+
+// Build a "summary" worksheet listing one row per selected period (net total +
+// budget cut) plus a grand-total row, used as page 1 of the combined export.
+function buildSummaryWorksheet(workbook, periodsWithTotals) {
+  const border = {
+    top: { style: 'thin', color: { argb: 'FF000000' } },
+    left: { style: 'thin', color: { argb: 'FF000000' } },
+    bottom: { style: 'thin', color: { argb: 'FF000000' } },
+    right: { style: 'thin', color: { argb: 'FF000000' } }
+  };
+  const fontName = 'Segoe UI';
+
+  const ws = workbook.addWorksheet('สรุป', { properties: { tabColor: { argb: 'FF0D9488' } } });
+  ws.columns = [
+    { key: 'period', width: 26 },
+    { key: 'total', width: 22 },
+    { key: 'cut', width: 24 }
+  ];
+
+  const label = periodsWithTotals
+    .map(p => `${THAI_MONTHS[p.month].substring(0, 3)}. ${p.year + 543}`)
+    .join(', ');
+
+  ws.mergeCells('A1:C1');
+  ws.getCell('A1').value = `สรุปงบประมาณรวม: ${label}`;
+  ws.getCell('A1').font = { name: fontName, size: 16, bold: true };
+  ws.getCell('A1').alignment = { horizontal: 'center' };
+
+  const headers = ['เดือน', 'ยอดรวม (บาท)', 'ยอดงบทำการที่ตัด (บาท)'];
+  const hRow = ws.getRow(3);
+  headers.forEach((h, i) => {
+    const c = hRow.getCell(i + 1);
+    c.value = h;
+    c.font = { name: fontName, size: 11, bold: true };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F2FF' } };
+    c.alignment = { horizontal: 'center' };
+    c.border = border;
+  });
+
+  let r = 4;
+  let grandTotal = 0;
+  let grandCut = 0;
+  for (const p of periodsWithTotals) {
+    const row = ws.getRow(r);
+    row.getCell(1).value = `${THAI_MONTHS[p.month]} ${p.year + 543}`;
+    row.getCell(2).value = p.totalAmount;
+    row.getCell(3).value = p.budgetCutTotal;
+    row.getCell(2).numFmt = '#,##0.00';
+    row.getCell(3).numFmt = '#,##0.00';
+    for (let c = 1; c <= 3; c++) {
+      row.getCell(c).border = border;
+      row.getCell(c).font = { name: fontName, size: 10 };
+    }
+    grandTotal += p.totalAmount;
+    grandCut += p.budgetCutTotal;
+    r++;
+  }
+
+  const tRow = ws.getRow(r);
+  tRow.getCell(1).value = 'รวมทั้งหมด';
+  tRow.getCell(2).value = grandTotal;
+  tRow.getCell(3).value = grandCut;
+  tRow.getCell(2).numFmt = '#,##0.00';
+  tRow.getCell(3).numFmt = '#,##0.00';
+  for (let c = 1; c <= 3; c++) {
+    tRow.getCell(c).border = border;
+    tRow.getCell(c).font = { name: fontName, size: 11, bold: true };
+  }
+
+  return ws;
+}
+
+// @route   GET /api/export/xlsx
+// @desc    Export budget sheet as Excel file matching the original format
+router.get('/xlsx', verifyToken, async (req, res) => {
+  const { month, year } = req.query;
+
+  if (!month || !year) {
+    return res.status(400).json({ error: 'month and year are required' });
+  }
+
+  try {
+    const { periodId, departments } = await getExportData(parseInt(month), parseInt(year));
+
+    if (!periodId) {
+      return res.status(404).json({ error: 'No data found for this period' });
+    }
+
+    await logExport(periodId, 'xlsx', req.user.id);
+
+    const workbook = new ExcelJS.Workbook();
+    buildMonthWorksheet(workbook, parseInt(month), parseInt(year), departments);
+
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -318,6 +412,73 @@ router.get('/xlsx', verifyToken, async (req, res) => {
     res.end();
   } catch (err) {
     console.error('Excel export error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// @route   POST /api/export/xlsx/combined
+// @desc    Export several budget sheets as a single Excel workbook: page 1 is
+//          a summary of all selected months, followed by one full detail page
+//          per selected month (chronological order).
+router.post('/xlsx/combined', verifyToken, async (req, res) => {
+  const periods = Array.isArray(req.body.periods) ? req.body.periods : [];
+
+  const cleaned = periods
+    .map(p => ({ month: parseInt(p.month), year: parseInt(p.year) }))
+    .filter(p => p.month >= 1 && p.month <= 12 && p.year > 0);
+
+  if (cleaned.length === 0) {
+    return res.status(400).json({ error: 'periods must be a non-empty array of { month, year }' });
+  }
+
+  // De-duplicate and sort chronologically.
+  const seen = new Set();
+  const unique = [];
+  for (const p of cleaned) {
+    const key = `${p.year}-${p.month}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(p);
+  }
+  unique.sort((a, b) => (a.year - b.year) || (a.month - b.month));
+
+  try {
+    const resolved = [];
+    for (const p of unique) {
+      const { periodId, departments } = await getExportData(p.month, p.year);
+      if (!periodId) continue; // skip months with no budget sheet
+      const totals = await getPeriodTotals(periodId);
+      resolved.push({ ...p, periodId, departments, ...totals });
+    }
+
+    if (resolved.length === 0) {
+      return res.status(404).json({ error: 'No data found for the selected periods' });
+    }
+
+    for (const p of resolved) {
+      await logExport(p.periodId, 'xlsx', req.user.id);
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    buildSummaryWorksheet(workbook, resolved);
+    for (const p of resolved) {
+      buildMonthWorksheet(workbook, p.month, p.year, p.departments);
+    }
+
+    const fileLabel = resolved.map(p => `${p.month}-${p.year}`).join('_');
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=BudgetHub_combined_${fileLabel}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('Combined Excel export error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

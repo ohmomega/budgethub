@@ -23,9 +23,18 @@ const dbPath =
 
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
-const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+function openDb() {
+  const handle = new Database(dbPath);
+  handle.pragma('journal_mode = WAL');
+  handle.pragma('foreign_keys = ON');
+  return handle;
+}
+
+// `db` is reassigned by closeForRestore()/reopen() (used by the backup
+// restore flow, which swaps the file on disk out from under this handle).
+// Everything below reads it through a closure/getter so the swap is visible
+// everywhere without re-requiring this module.
+let db = openDb();
 
 // Columns that were BOOLEAN in Postgres (stored as 0/1 in SQLite).
 const BOOL_COLUMNS = new Set(['is_active', 'is_deleted', 'is_budget_cut']);
@@ -106,9 +115,26 @@ function query(text, params = []) {
   }
 }
 
+// Closes the live handle so its on-disk file (and -wal/-shm siblings) can be
+// safely replaced. Call reopen() afterwards to resume serving queries.
+function closeForRestore() {
+  db.close();
+}
+
+// Re-opens the database file at dbPath — used right after a backup restore
+// has swapped in a new file.
+function reopen() {
+  db = openDb();
+}
+
 module.exports = {
   query,
-  // Expose the raw better-sqlite3 handle for seeding / maintenance.
-  raw: db,
+  dbPath,
+  closeForRestore,
+  reopen,
+  // Expose the raw better-sqlite3 handle for seeding / maintenance. A getter
+  // so callers always see the current handle, even after a restore-triggered
+  // reopen() replaces it.
+  get raw() { return db; },
   pool: { query }, // compatibility with any code expecting pool.query
 };

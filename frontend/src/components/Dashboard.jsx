@@ -45,7 +45,15 @@ const dict = {
     statBudgetCut: 'งบดำเนินงานที่ตัด',
     statTotal: 'ยอดรวมสุทธิ',
     monthlyComparison: 'การเปรียบเทียบรายเดือน',
+    yearlyComparison: 'การเปรียบเทียบรายปี',
     trendTitle: 'แนวโน้มย้อนหลัง',
+    scopeWhole: 'ทั้งปี',
+    scopeThisMonth: 'เดือนนี้',
+    scopeCustom: 'กำหนดเอง',
+    scopeYearLabel: 'ปี:',
+    scopeNoMonths: 'กรุณาเลือกอย่างน้อย 1 เดือน',
+    scopeSummaryYear: (y) => `ทั้งปี ${y}`,
+    scopeSummaryMonths: (labels) => `เดือน: ${labels}`,
     ccBreakdown: 'สัดส่วนตามศูนย์ต้นทุน',
     editSheetLink: 'แก้ไขแผ่นงบประมาณปัจจุบัน >',
     recentSheets: 'แผ่นงบประมาณล่าสุด',
@@ -82,7 +90,15 @@ const dict = {
     statBudgetCut: 'Operating Budget Cuts',
     statTotal: 'Net Grand Total',
     monthlyComparison: 'Monthly Comparison',
+    yearlyComparison: 'Yearly Comparison',
     trendTitle: 'Historical Trend',
+    scopeWhole: 'Whole Year',
+    scopeThisMonth: 'This Month',
+    scopeCustom: 'Custom',
+    scopeYearLabel: 'Year:',
+    scopeNoMonths: 'Select at least one month',
+    scopeSummaryYear: (y) => `Whole year ${y}`,
+    scopeSummaryMonths: (labels) => `Months: ${labels}`,
     ccBreakdown: 'Allocation by Cost Center',
     editSheetLink: 'Edit Active Budget Sheet >',
     recentSheets: 'Recent Budget Sheets',
@@ -128,6 +144,14 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
   const [yearlyLoading, setYearlyLoading] = useState(false);
   const [activeReportMonth, setActiveReportMonth] = useState(null);
 
+  // Trend/cost-center scope: 'year' (default, whole year), 'month' (current
+  // calendar month only), or 'custom' (any set of months picked below).
+  const [scopeMode, setScopeMode] = useState('year');
+  const [scopeYear, setScopeYear] = useState(new Date().getFullYear());
+  const [scopeMonths, setScopeMonths] = useState([]); // used when scopeMode === 'custom'
+  const [scopeData, setScopeData] = useState(null);
+  const [scopeLoading, setScopeLoading] = useState(false);
+
   // Create sheet state
   const now = new Date();
   const [createMonth, setCreateMonth] = useState(now.getMonth() + 1);
@@ -167,6 +191,42 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
   useEffect(() => {
     fetchDashboardData();
   }, [selectedDeptId]);
+
+  // Once the active period is known, default the scope selector's year to it.
+  useEffect(() => {
+    if (data?.period?.year) setScopeYear(data.period.year);
+  }, [data?.period?.year]);
+
+  const thisMonth = new Date().getMonth() + 1;
+
+  // Fetch trend + cost-center data for the current scope selection.
+  const fetchScopeData = async () => {
+    if (scopeMode === 'custom' && scopeMonths.length === 0) {
+      setScopeData(null);
+      return;
+    }
+    setScopeLoading(true);
+    try {
+      const monthsList = scopeMode === 'month' ? [thisMonth] : scopeMode === 'custom' ? scopeMonths : [];
+      const monthsParam = monthsList.length > 0 ? `&months=${monthsList.join(',')}` : '';
+      const deptParam = selectedDeptId === 'all' ? '' : `&department_id=${selectedDeptId}`;
+      const res = await api.get(`/dashboard/scope?year=${scopeYear}${monthsParam}${deptParam}`);
+      setScopeData(res.data);
+    } catch (err) {
+      console.error('Fetch dashboard scope error:', err);
+      setScopeData(null);
+    } finally {
+      setScopeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchScopeData();
+  }, [scopeMode, scopeMonths, scopeYear, selectedDeptId]);
+
+  const toggleScopeMonth = (m) => {
+    setScopeMonths(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m].sort((a, b) => a - b));
+  };
 
   const handleCreateSheet = async (e) => {
     e.preventDefault();
@@ -315,17 +375,25 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
     );
   }
 
-  const { period, stats, costCenterBreakdown, monthlyTrend, latestSheets } = data || {
+  const { period, stats, latestSheets } = data || {
     period: null,
     stats: { totalAmount: 0, budgetCutAmount: 0, budgetCutTotalAmount: 0 },
-    costCenterBreakdown: [],
-    monthlyTrend: [],
     latestSheets: []
   };
 
+  // Trend + cost-center breakdown for the currently selected scope
+  // (whole year / this month / a custom set of months).
+  const scopeTrend = scopeData?.trend || [];
+  const scopeCostCenterBreakdown = scopeData?.costCenterBreakdown || [];
+  const scopeMonthCount = scopeMode === 'year' ? 12 : scopeMode === 'month' ? 1 : scopeMonths.length;
+  const comparisonTitle = scopeMonthCount === 1 ? t.monthlyComparison : t.yearlyComparison;
+  const scopeSubtitle = scopeMode === 'custom' && scopeMonths.length > 0
+    ? t.scopeSummaryMonths(scopeMonths.map(m => MONTH_NAMES[lang][m - 1].substring(0, 3)).join(', '))
+    : t.scopeSummaryYear(lang === 'TH' ? scopeYear + 543 : scopeYear);
+
   // Chart max value — scale to the larger of the two series (net total / cut)
-  const maxTrendAmount = monthlyTrend.length > 0
-    ? Math.max(...monthlyTrend.map(m => Math.max(m.amount || 0, m.totalAmount || 0)), 1000)
+  const maxTrendAmount = scopeTrend.length > 0
+    ? Math.max(...scopeTrend.map(m => Math.max(m.budgetCutTotal || 0, m.totalAmount || 0)), 1000)
     : 1000;
 
   return (
@@ -443,28 +511,91 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* Trend Chart (Col span 2) */}
-          <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
-            <div>
-              <h3 className="font-extrabold text-slate-800 text-base">{t.monthlyComparison}</h3>
-              <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 block">
-                {t.trendTitle}
-              </span>
+          <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-base">{comparisonTitle}</h3>
+                <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 block">
+                  {scopeSubtitle}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={scopeYear}
+                  onChange={(e) => setScopeYear(parseInt(e.target.value))}
+                  className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
+                >
+                  {YEARS.map(y => (
+                    <option key={y.value} value={y.value}>{lang === 'TH' ? y.labelTH : y.labelEN}</option>
+                  ))}
+                </select>
+                <div className="bg-slate-100 p-0.5 rounded-lg flex items-center">
+                  <button
+                    onClick={() => setScopeMode('year')}
+                    className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md transition cursor-pointer ${scopeMode === 'year' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    {t.scopeWhole}
+                  </button>
+                  <button
+                    onClick={() => setScopeMode('month')}
+                    className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md transition cursor-pointer ${scopeMode === 'month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    {t.scopeThisMonth}
+                  </button>
+                  <button
+                    onClick={() => setScopeMode('custom')}
+                    className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md transition cursor-pointer ${scopeMode === 'custom' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    {t.scopeCustom}
+                  </button>
+                </div>
+              </div>
             </div>
 
+            {/* Custom month picker (only in "custom" scope mode) */}
+            {scopeMode === 'custom' && (
+              <div className="flex flex-wrap gap-1.5">
+                {MONTH_NAMES[lang].map((name, idx) => {
+                  const m = idx + 1;
+                  const active = scopeMonths.includes(m);
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => toggleScopeMonth(m)}
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+                        active
+                          ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-[var(--color-primary-light)]'
+                      }`}
+                    >
+                      {name.substring(0, 3)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Custom SVG Bar Chart */}
-            <div className="h-60 w-full relative flex items-end justify-around border-b border-slate-100 pb-2">
-              {monthlyTrend.length > 0 ? (
-                monthlyTrend.map((m, idx) => {
+            <div className="h-60 w-full relative flex items-end justify-around gap-1 border-b border-slate-100 pb-2">
+              {scopeLoading ? (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-[var(--color-primary)]" />
+                </div>
+              ) : scopeMode === 'custom' && scopeMonths.length === 0 ? (
+                <div className="text-slate-400 text-xs py-20 text-center w-full">{t.scopeNoMonths}</div>
+              ) : scopeTrend.length > 0 ? (
+                scopeTrend.map((m, idx) => {
                   const netVal = m.totalAmount || 0;
-                  const cutVal = m.amount || 0;
+                  const cutVal = m.budgetCutTotal || 0;
                   const netPct = Math.max((netVal / maxTrendAmount) * 80, netVal > 0 ? 3 : 0);
                   // Floor the budget-cut bar at a clearly visible height so small
                   // cuts don't collapse to a sliver next to the net-total bar.
                   const cutPct = Math.max((cutVal / maxTrendAmount) * 80, cutVal > 0 ? 8 : 0);
-                  const label = `${m.year}-${m.month < 10 ? '0' + m.month : m.month}`;
+                  const label = MONTH_NAMES[lang][m.month - 1].substring(0, 3);
 
                   return (
-                    <div key={idx} className="h-full flex flex-col items-center group w-1/6 relative">
+                    <div key={idx} className="h-full flex flex-col items-center group flex-1 min-w-0 relative">
                       {/* Tooltip on Hover (net total + budget cut) */}
                       <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 shadow pointer-events-none whitespace-nowrap space-y-1 z-10">
                         <div className="flex items-center gap-1.5">
@@ -478,19 +609,19 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                       </div>
 
                       {/* Twin bars: net grand total (teal) + budget cut (pink) */}
-                      <div className="flex-1 w-full flex items-end justify-center gap-1.5">
+                      <div className="flex-1 w-full flex items-end justify-center gap-1 sm:gap-1.5">
                         <div
                           style={{ height: `${netPct}%` }}
-                          className="w-5 bg-gradient-to-t from-teal-400 to-[var(--color-primary)] rounded-t-lg shadow-sm transition-all duration-300"
+                          className="w-3 sm:w-5 bg-gradient-to-t from-teal-400 to-[var(--color-primary)] rounded-t-lg shadow-sm transition-all duration-300"
                         />
                         <div
                           style={{ height: `${cutPct}%` }}
-                          className="w-5 bg-gradient-to-t from-rose-400 to-pink-500 rounded-t-lg shadow-sm transition-all duration-300 group-hover:from-rose-500 group-hover:to-pink-600"
+                          className="w-3 sm:w-5 bg-gradient-to-t from-rose-400 to-pink-500 rounded-t-lg shadow-sm transition-all duration-300 group-hover:from-rose-500 group-hover:to-pink-600"
                         />
                       </div>
 
                       {/* X-axis Label */}
-                      <span className="text-[10px] font-bold text-slate-400 mt-2 block">
+                      <span className="text-[10px] font-bold text-slate-400 mt-2 block truncate">
                         {label}
                       </span>
                     </div>
@@ -519,15 +650,22 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
             <div>
               <h3 className="font-extrabold text-slate-800 text-base">{t.ccBreakdown}</h3>
+              <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 block">
+                {scopeSubtitle}
+              </span>
             </div>
 
             {/* Breakdown List */}
             <div className="space-y-4 my-6 overflow-y-auto max-h-56 pr-1">
-              {costCenterBreakdown.length > 0 ? (
-                costCenterBreakdown.map((cc, idx) => {
-                  const maxAmt = Math.max(...costCenterBreakdown.map(c => c.total_amount), 1);
+              {scopeLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-[var(--color-primary)]" />
+                </div>
+              ) : scopeCostCenterBreakdown.length > 0 ? (
+                scopeCostCenterBreakdown.map((cc, idx) => {
+                  const maxAmt = Math.max(...scopeCostCenterBreakdown.map(c => c.total_amount), 1);
                   const percentage = (cc.total_amount / maxAmt) * 100;
-                  
+
                   return (
                     <div key={idx} className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-600">
@@ -535,7 +673,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                         <span>฿{cc.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2">
-                        <div 
+                        <div
                           style={{ width: `${percentage}%` }}
                           className="bg-[var(--color-primary)] h-2 rounded-full transition-all duration-300"
                         />

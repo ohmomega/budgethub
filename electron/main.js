@@ -91,6 +91,18 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
+  // Backup exports (.bhbackup files) previously intercepted the download with
+  // a native dialog.showSaveDialog() Save As prompt. On Windows, a native
+  // dialog opened from a renderer-triggered event can render behind the main
+  // window if the app doesn't have OS foreground focus at that exact instant
+  // (the same "foreground lock" issue that used to make alert()/confirm()
+  // freeze this app — see showAlert.jsx). Since showSaveDialog is async it
+  // didn't freeze anything, but the hidden dialog just sat there waiting for
+  // input the user could never see, so clicking Export repeatedly looked like
+  // nothing happened. Backups now use the same silent save-to-Downloads flow
+  // that PDF/XLSX/JPG exports already use reliably; the user can move the
+  // file to another location afterwards from File Explorer.
+
   // BudgetHub is a single-window app. Never spawn a second BrowserWindow:
   // links to the local backend (e.g. file exports) must not pop open a blank
   // window — they are handled in-page — and real external links open in the
@@ -121,6 +133,33 @@ app.whenReady().then(bootstrap);
 
 app.on('window-all-closed', () => {
   app.quit();
+});
+
+// Automatic backup on quit: the window is already closed/gone by this point
+// (window-all-closed fires first, above), so the user sees the app disappear
+// instantly — the backup itself runs invisibly afterwards, with a timeout so
+// a stuck backup can never keep the app from actually closing.
+let quittingAfterBackup = false;
+let backupInProgress = false;
+
+app.on('before-quit', (event) => {
+  if (quittingAfterBackup) return; // backup already ran (or timed out); let quit proceed
+  event.preventDefault();
+  if (backupInProgress) return; // already running; it will re-trigger quit when done
+
+  backupInProgress = true;
+  const { runAutoBackup } = require('../backend/autoBackup');
+  const AUTO_BACKUP_TIMEOUT_MS = 8000;
+
+  Promise.race([
+    runAutoBackup(),
+    new Promise((resolve) => setTimeout(resolve, AUTO_BACKUP_TIMEOUT_MS)),
+  ])
+    .catch((err) => console.error('Auto-backup on quit failed:', err))
+    .finally(() => {
+      quittingAfterBackup = true;
+      app.quit();
+    });
 });
 
 app.on('activate', () => {

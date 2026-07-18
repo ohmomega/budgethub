@@ -669,4 +669,98 @@ router.get('/dashboard/yearly', verifyToken, async (req, res) => {
   }
 });
 
+// @route   GET /api/dashboard/scope
+// @desc    Trend + cost-center breakdown for an arbitrary set of months in a
+//          year — backs the dashboard's Yearly / Monthly comparison toggle.
+//          `months` is a comma-separated list (e.g. "2,6,8"); omitted, empty,
+//          or covering all 12 months means "the whole year".
+router.get('/dashboard/scope', verifyToken, async (req, res) => {
+  const { year, months, department_id } = req.query;
+
+  let targetDeptId = req.user.role === 'editor' ? req.user.department_id : department_id;
+  if (targetDeptId === 'all' || targetDeptId === '') targetDeptId = null;
+
+  const targetYear = parseInt(year) || new Date().getFullYear();
+
+  let monthList = null;
+  if (months) {
+    monthList = String(months)
+      .split(',')
+      .map(m => parseInt(m, 10))
+      .filter(m => m >= 1 && m <= 12);
+    if (monthList.length === 0 || monthList.length === 12) monthList = null;
+  }
+
+  try {
+    // Per-month totals for the whole year (fetched once, filtered below).
+    const monthsQuery = `
+      SELECT p.month,
+        COALESCE(SUM(e.total_amount), 0) AS total_amount,
+        COALESCE(SUM(CASE WHEN e.is_budget_cut = true THEN e.total_amount ELSE 0 END), 0) AS budget_cut_total
+      FROM budget_periods p
+      LEFT JOIN expense_entries e
+        ON e.period_id = p.id AND e.is_deleted = false
+        AND ($2::uuid IS NULL OR e.department_id = $2)
+      WHERE p.year = $1
+      GROUP BY p.month
+    `;
+    const rows = (await db.query(monthsQuery, [targetYear, targetDeptId])).rows;
+    const byMonth = {};
+    for (const r of rows) {
+      byMonth[r.month] = {
+        totalAmount: parseFloat(r.total_amount),
+        budgetCutTotal: parseFloat(r.budget_cut_total)
+      };
+    }
+
+    const allMonths = [];
+    for (let m = 1; m <= 12; m++) {
+      const v = byMonth[m] || { totalAmount: 0, budgetCutTotal: 0 };
+      allMonths.push({ month: m, year: targetYear, ...v });
+    }
+
+    const trend = monthList ? allMonths.filter(m => monthList.includes(m.month)) : allMonths;
+
+    // Cost-center breakdown aggregated across the selected scope (budget-cut
+    // entries only — matches the existing single-period breakdown semantics).
+    let ccQuery = `
+      SELECT c.cc_code, c.cc_name,
+        COALESCE(SUM(e.amount), 0) AS amount,
+        COALESCE(SUM(e.total_amount), 0) AS total_amount
+      FROM expense_entries e
+      JOIN cost_centers c ON e.cost_center_id = c.id
+      JOIN budget_periods p ON e.period_id = p.id
+      WHERE p.year = $1 AND e.is_deleted = false AND e.is_budget_cut = true
+        AND ($2::uuid IS NULL OR e.department_id = $2)
+    `;
+    const ccParams = [targetYear, targetDeptId];
+    if (monthList) {
+      let idx = ccParams.length + 1;
+      const placeholders = monthList.map(() => `$${idx++}`).join(',');
+      ccQuery += ` AND p.month IN (${placeholders})`;
+      ccParams.push(...monthList);
+    }
+    ccQuery += ' GROUP BY c.cc_code, c.cc_name ORDER BY amount DESC';
+
+    const ccRes = await db.query(ccQuery, ccParams);
+    const costCenterBreakdown = ccRes.rows.map(row => ({
+      cc_code: row.cc_code,
+      cc_name: row.cc_name || `ศูนย์ต้นทุน ${row.cc_code}`,
+      amount: parseFloat(row.amount),
+      total_amount: parseFloat(row.total_amount)
+    }));
+
+    res.json({
+      year: targetYear,
+      scope: monthList && monthList.length === 1 ? 'month' : 'year',
+      months: monthList || allMonths.map(m => m.month),
+      trend,
+      costCenterBreakdown
+    });
+  } catch (err) {
+    console.error('Fetch dashboard scope error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

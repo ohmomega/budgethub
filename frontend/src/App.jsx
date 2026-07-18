@@ -8,6 +8,7 @@ import CostCentersList from './components/CostCentersList';
 import DepartmentsList from './components/DepartmentsList';
 import ManageUsers from './components/ManageUsers';
 import HelpCenter from './components/HelpCenter';
+import BackupRestore from './components/BackupRestore';
 import {
   LogOut,
   LayoutDashboard,
@@ -23,6 +24,7 @@ import {
   Circle,
   ArrowRight,
   Sparkles,
+  DatabaseBackup,
   X
 } from 'lucide-react';
 
@@ -33,6 +35,7 @@ const dict = {
     costCenters: 'ศูนย์ต้นทุน',
     departments: 'จัดการแผนก',
     manageUsers: 'จัดการผู้ใช้งาน',
+    backup: 'สำรอง & กู้คืนข้อมูล',
     help: 'คู่มือการใช้งาน',
     language: 'ภาษา',
     theme: 'ธีมสี',
@@ -60,6 +63,7 @@ const dict = {
     costCenters: 'Cost Centers',
     departments: 'Departments',
     manageUsers: 'Manage Users',
+    backup: 'Backup & Restore',
     help: 'Help & Guide',
     language: 'Language',
     theme: 'Theme Color',
@@ -301,6 +305,18 @@ export default function App() {
               <span>{t.departments}</span>
             </button>
 
+            {/* Backup & Restore */}
+            <button
+              onClick={() => { setCurrentTab('backup'); setActiveSheetPeriod(null); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition cursor-pointer ${currentTab === 'backup'
+                ? 'bg-[var(--color-primary-bg-light)] text-[var(--color-primary)]'
+                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-50'
+                }`}
+            >
+              <DatabaseBackup className="h-5 w-5" />
+              <span>{t.backup}</span>
+            </button>
+
             {/* Help & Guide */}
             <button
               onClick={() => { setCurrentTab('help'); setActiveSheetPeriod(null); }}
@@ -457,6 +473,9 @@ export default function App() {
         )}
         {currentTab === 'departments' && (
           <DepartmentsList user={user} lang={lang} />
+        )}
+        {currentTab === 'backup' && (
+          <BackupRestore lang={lang} />
         )}
         {currentTab === 'help' && (
           <HelpCenter lang={lang} onNavigate={handleNavigate} onOpenSetup={() => { refreshSetup(); setShowWelcome(true); }} />

@@ -33,6 +33,7 @@ function createApp({ distDir }) {
   app.use('/api', require('./routes/master'));
   app.use('/api', require('./routes/expenses'));
   app.use('/api/export', require('./routes/export'));
+  app.use('/api/backup', require('./routes/backup'));
 
   app.get('/health', (req, res) => {
     res.json({ status: 'ok', time: new Date() });
