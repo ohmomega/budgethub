@@ -79,18 +79,30 @@ function buildMonthWorksheet(workbook, month, year, departments) {
     // Grid options
     worksheet.views = [{ showGridLines: true }];
 
-    // Column configurations (A to J)
+    // Print setup: A4 portrait, scaled to fit the page width so the wide
+    // table doesn't get cut off or default to landscape when printed.
+    worksheet.pageSetup = {
+      paperSize: 9, // A4
+      orientation: 'portrait',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalCentered: true,
+      margins: { left: 0.3, right: 0.3, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 }
+    };
+
+    // Column configurations (A to H), narrowed from the original widths so
+    // the A4-portrait print (fitToWidth: 1 above) doesn't have to shrink the
+    // font down to an unreadable size to fit one page wide.
     worksheet.columns = [
-      { key: 'dept', width: 18 },
-      { key: 'no', width: 8 },
-      { key: 'account', width: 15 },
-      { key: 'cost_center', width: 16 },
-      { key: 'item', width: 45 },
-      { key: 'amount', width: 16 },
-      { key: 'tax', width: 14 },
-      { key: 'total', width: 16 },
-      { key: 'reason', width: 20 },
-      { key: 'budget_cut', width: 22 }
+      { key: 'dept', width: 15 },
+      { key: 'account', width: 11 },
+      { key: 'cost_center', width: 11 },
+      { key: 'item', width: 36 },
+      { key: 'amount', width: 13 },
+      { key: 'tax', width: 11 },
+      { key: 'total', width: 13 },
+      { key: 'budget_cut', width: 18 }
     ];
 
     const titleText = `สรุปงบประมาณ เดือน ${THAI_MONTHS[month]} ${year + 543}`;
@@ -119,26 +131,26 @@ function buildMonthWorksheet(workbook, month, year, departments) {
 
     // Title Row (Row 2)
     worksheet.getRow(2).getCell(5).value = titleText;
-    worksheet.getRow(2).getCell(5).font = { name: fontName, size: 16, bold: true };
+    worksheet.getRow(2).getCell(5).font = { name: fontName, size: 17, bold: true };
     worksheet.getRow(2).getCell(5).alignment = { horizontal: 'center' };
 
     // =========================================================================
     // PART 1: CONSOLIDATION SUMMARY (Top Table)
     // =========================================================================
     const headerRow1 = 4;
-    const headers = ['แผนก', 'ลำดับที', 'รหัสบัญชี', 'รหัสศูนย์ต้นทุน', 'รายการ', 'จำนวนเงิน', 'ภาษี', 'ราคารวม', 'เหตุผล', 'ตัดงบทำการ (ไม่รวมภาษี)'];
-    
+    const headers = ['แผนก', 'รหัสบัญชี', 'รหัสศูนย์ต้นทุน', 'รายการ', 'จำนวนเงิน', 'ภาษี', 'ราคารวม', 'ตัดงบทำการ (ไม่รวมภาษี)'];
+
     // Write headers
     const hRow = worksheet.getRow(headerRow1);
     headers.forEach((h, idx) => {
       const cell = hRow.getCell(idx + 1);
       cell.value = h;
-      cell.font = { name: fontName, size: 11, bold: true };
+      cell.font = { name: fontName, size: 13, bold: true };
       cell.fill = headerFill;
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       cell.border = borderStyle;
     });
-    hRow.height = 25;
+    hRow.height = 32;
 
     let currentRow = 5;
     const part1StartRow = 5;
@@ -150,8 +162,9 @@ function buildMonthWorksheet(workbook, month, year, departments) {
       // Department Section Title Row
       const dRow = worksheet.getRow(currentRow);
       dRow.getCell(1).value = dept.dept_name;
-      dRow.getCell(1).font = { name: fontName, size: 11, bold: true };
-      for (let c = 1; c <= 10; c++) {
+      dRow.getCell(1).font = { name: fontName, size: 13, bold: true };
+      dRow.height = 20;
+      for (let c = 1; c <= 8; c++) {
         dRow.getCell(c).border = borderStyle;
       }
       currentRow++;
@@ -161,28 +174,32 @@ function buildMonthWorksheet(workbook, month, year, departments) {
       // Entries for this department in Part 1
       for (const entry of dept.entries) {
         const row = worksheet.getRow(currentRow);
-        row.getCell(3).value = entry.account_code ? parseFloat(entry.account_code) : null;
-        row.getCell(4).value = entry.cc_code === '-' ? '-' : entry.cc_code;
-        row.getCell(5).value = entry.item_name;
-        
+        row.getCell(2).value = entry.account_code ? parseFloat(entry.account_code) : null;
+        row.getCell(3).value = entry.cc_code === '-' ? '-' : entry.cc_code;
+        row.getCell(4).value = entry.item_name;
+
         // Use Excel formulas for VAT and Total
-        row.getCell(6).value = parseFloat(entry.amount);
-        row.getCell(7).value = { formula: `F${currentRow}*7%` };
-        row.getCell(8).value = { formula: `F${currentRow}+G${currentRow}` };
-        row.getCell(9).value = entry.reason_note || '';
-        row.getCell(10).value = entry.is_budget_cut ? { formula: `F${currentRow}` } : null;
+        row.getCell(5).value = parseFloat(entry.amount);
+        row.getCell(6).value = { formula: `E${currentRow}*7%` };
+        row.getCell(7).value = { formula: `E${currentRow}+F${currentRow}` };
+        row.getCell(8).value = entry.is_budget_cut ? { formula: `E${currentRow}` } : null;
 
         // Formats and borders
-        row.getCell(3).numFmt = '@';
-        row.getCell(4).alignment = { horizontal: 'center' };
+        row.getCell(2).numFmt = '@';
+        row.getCell(3).alignment = { horizontal: 'center' };
+        row.getCell(5).numFmt = '#,##0.00';
         row.getCell(6).numFmt = '#,##0.00';
         row.getCell(7).numFmt = '#,##0.00';
         row.getCell(8).numFmt = '#,##0.00';
-        row.getCell(10).numFmt = '#,##0.00';
 
-        for (let c = 1; c <= 10; c++) {
+        // A little extra row height (vs. the ~15pt auto height) so
+        // consecutive rows have visible breathing room above/below the text,
+        // instead of relying on thicker border lines.
+        row.height = 20;
+
+        for (let c = 1; c <= 8; c++) {
           row.getCell(c).border = borderStyle;
-          row.getCell(c).font = { name: fontName, size: 10 };
+          row.getCell(c).font = { name: fontName, size: 13 };
         }
         currentRow++;
       }
@@ -193,39 +210,52 @@ function buildMonthWorksheet(workbook, month, year, departments) {
     // Part 1 Grand Total Row
     const totalRowPart1 = worksheet.getRow(currentRow);
     totalRowPart1.getCell(1).value = 'รวม';
-    totalRowPart1.getCell(1).font = { name: fontName, size: 11, bold: true };
+    totalRowPart1.getCell(1).font = { name: fontName, size: 13, bold: true };
     totalRowPart1.getCell(1).alignment = { horizontal: 'center' };
+    totalRowPart1.height = 20;
 
+    totalRowPart1.getCell(5).value = { formula: `SUM(E${part1StartRow}:E${part1EndRow})` };
     totalRowPart1.getCell(6).value = { formula: `SUM(F${part1StartRow}:F${part1EndRow})` };
     totalRowPart1.getCell(7).value = { formula: `SUM(G${part1StartRow}:G${part1EndRow})` };
     totalRowPart1.getCell(8).value = { formula: `SUM(H${part1StartRow}:H${part1EndRow})` };
-    totalRowPart1.getCell(10).value = { formula: `SUM(J${part1StartRow}:J${part1EndRow})` };
 
     // Format total row
     ['amount', 'tax', 'total', 'budget_cut'].forEach(col => {
-      const cell = totalRowPart1.getCell(col === 'amount' ? 6 : col === 'tax' ? 7 : col === 'total' ? 8 : 10);
+      const cell = totalRowPart1.getCell(col === 'amount' ? 5 : col === 'tax' ? 6 : col === 'total' ? 7 : 8);
       cell.numFmt = '#,##0.00';
-      cell.font = { name: fontName, size: 11, bold: true };
+      cell.font = { name: fontName, size: 13, bold: true };
     });
 
     const doubleBottomBorder = {
       top: { style: 'thin', color: { argb: 'FF000000' } },
       bottom: { style: 'double', color: { argb: 'FF000000' } }
     };
-    for (let c = 1; c <= 10; c++) {
+    for (let c = 1; c <= 8; c++) {
       totalRowPart1.getCell(c).border = doubleBottomBorder;
     }
+    // Force Part 2 onto a fresh printed page so the summary table (Part 1)
+    // always finishes cleanly on its own page(s) instead of having Part 2's
+    // first department start mid-page.
+    worksheet.getRow(currentRow).addPageBreak();
     currentRow += 5; // Add space before Part 2
 
     // =========================================================================
     // PART 2: DETAILED SECTIONS BY DEPARTMENT (Bottom Tables)
     // =========================================================================
+    let isFirstDeptSection = true;
     for (const dept of departments) {
       if (dept.entries.length === 0) continue;
 
+      // Force every department after the first onto a new page so a
+      // department's detail table never gets split across a page break.
+      if (!isFirstDeptSection) {
+        worksheet.getRow(currentRow - 1).addPageBreak();
+      }
+      isFirstDeptSection = false;
+
       // Section Header (e.g. ผกส.กฟส.ศรช. in Column E)
       worksheet.getRow(currentRow).getCell(5).value = dept.dept_name;
-      worksheet.getRow(currentRow).getCell(5).font = { name: fontName, size: 12, bold: true };
+      worksheet.getRow(currentRow).getCell(5).font = { name: fontName, size: 15, bold: true };
       currentRow += 4; // Add space matching test.xlsx structure
 
       // Detailed Table Headers
@@ -233,18 +263,20 @@ function buildMonthWorksheet(workbook, month, year, departments) {
       headers.forEach((h, idx) => {
         const cell = subHeader.getCell(idx + 1);
         cell.value = h;
-        cell.font = { name: fontName, size: 11, bold: true };
+        cell.font = { name: fontName, size: 13, bold: true };
         cell.fill = subheaderFill;
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
         cell.border = borderStyle;
       });
+      subHeader.height = 32;
       currentRow++;
 
       // Department Row inside the sub-table
       const deptTitleRow = worksheet.getRow(currentRow);
       deptTitleRow.getCell(1).value = dept.dept_name;
-      deptTitleRow.getCell(1).font = { name: fontName, size: 11, bold: true };
-      for (let c = 1; c <= 10; c++) {
+      deptTitleRow.getCell(1).font = { name: fontName, size: 13, bold: true };
+      deptTitleRow.height = 20;
+      for (let c = 1; c <= 8; c++) {
         deptTitleRow.getCell(c).border = borderStyle;
       }
       currentRow++;
@@ -254,26 +286,26 @@ function buildMonthWorksheet(workbook, month, year, departments) {
       // Write section entries
       for (const entry of dept.entries) {
         const row = worksheet.getRow(currentRow);
-        row.getCell(3).value = entry.account_code ? parseFloat(entry.account_code) : null;
-        row.getCell(4).value = entry.cc_code === '-' ? '-' : entry.cc_code;
-        row.getCell(5).value = entry.item_name;
-        
-        row.getCell(6).value = parseFloat(entry.amount);
-        row.getCell(7).value = { formula: `F${currentRow}*7%` };
-        row.getCell(8).value = { formula: `F${currentRow}+G${currentRow}` };
-        row.getCell(9).value = entry.reason_note || '';
-        row.getCell(10).value = entry.is_budget_cut ? { formula: `F${currentRow}` } : null;
+        row.getCell(2).value = entry.account_code ? parseFloat(entry.account_code) : null;
+        row.getCell(3).value = entry.cc_code === '-' ? '-' : entry.cc_code;
+        row.getCell(4).value = entry.item_name;
 
-        row.getCell(3).numFmt = '@';
-        row.getCell(4).alignment = { horizontal: 'center' };
+        row.getCell(5).value = parseFloat(entry.amount);
+        row.getCell(6).value = { formula: `E${currentRow}*7%` };
+        row.getCell(7).value = { formula: `E${currentRow}+F${currentRow}` };
+        row.getCell(8).value = entry.is_budget_cut ? { formula: `E${currentRow}` } : null;
+
+        row.getCell(2).numFmt = '@';
+        row.getCell(3).alignment = { horizontal: 'center' };
+        row.getCell(5).numFmt = '#,##0.00';
         row.getCell(6).numFmt = '#,##0.00';
         row.getCell(7).numFmt = '#,##0.00';
         row.getCell(8).numFmt = '#,##0.00';
-        row.getCell(10).numFmt = '#,##0.00';
+        row.height = 20;
 
-        for (let c = 1; c <= 10; c++) {
+        for (let c = 1; c <= 8; c++) {
           row.getCell(c).border = borderStyle;
-          row.getCell(c).font = { name: fontName, size: 10 };
+          row.getCell(c).font = { name: fontName, size: 13 };
         }
         currentRow++;
       }
@@ -283,21 +315,22 @@ function buildMonthWorksheet(workbook, month, year, departments) {
       // Department sub-total row
       const subTotalRow = worksheet.getRow(currentRow);
       subTotalRow.getCell(1).value = 'รวม';
-      subTotalRow.getCell(1).font = { name: fontName, size: 11, bold: true };
+      subTotalRow.getCell(1).font = { name: fontName, size: 13, bold: true };
       subTotalRow.getCell(1).alignment = { horizontal: 'center' };
+      subTotalRow.height = 20;
 
+      subTotalRow.getCell(5).value = { formula: `SUM(E${sectionStartRow}:E${sectionEndRow})` };
       subTotalRow.getCell(6).value = { formula: `SUM(F${sectionStartRow}:F${sectionEndRow})` };
       subTotalRow.getCell(7).value = { formula: `SUM(G${sectionStartRow}:G${sectionEndRow})` };
       subTotalRow.getCell(8).value = { formula: `SUM(H${sectionStartRow}:H${sectionEndRow})` };
-      subTotalRow.getCell(10).value = { formula: `SUM(J${sectionStartRow}:J${sectionEndRow})` };
 
       ['amount', 'tax', 'total', 'budget_cut'].forEach(col => {
-        const cell = subTotalRow.getCell(col === 'amount' ? 6 : col === 'tax' ? 7 : col === 'total' ? 8 : 10);
+        const cell = subTotalRow.getCell(col === 'amount' ? 5 : col === 'tax' ? 6 : col === 'total' ? 7 : 8);
         cell.numFmt = '#,##0.00';
-        cell.font = { name: fontName, size: 11, bold: true };
+        cell.font = { name: fontName, size: 13, bold: true };
       });
 
-      for (let c = 1; c <= 10; c++) {
+      for (let c = 1; c <= 8; c++) {
         subTotalRow.getCell(c).border = doubleBottomBorder;
       }
 
@@ -324,6 +357,15 @@ function buildSummaryWorksheet(workbook, periodsWithTotals) {
     { key: 'total', width: 22 },
     { key: 'cut', width: 24 }
   ];
+  ws.pageSetup = {
+    paperSize: 9,
+    orientation: 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    margins: { left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 }
+  };
 
   const label = periodsWithTotals
     .map(p => `${THAI_MONTHS[p.month].substring(0, 3)}. ${p.year + 543}`)
@@ -501,10 +543,10 @@ router.get('/pdf', verifyToken, async (req, res) => {
 
     await logExport(periodId, 'pdf', req.user.id);
 
-    // Initialize landscape A4 PDF document
+    // Initialize portrait A4 PDF document
     const doc = new PDFDocument({
       size: 'A4',
-      layout: 'landscape',
+      layout: 'portrait',
       margins: { top: 25, left: 25, right: 25, bottom: 25 }
     });
 
@@ -527,34 +569,46 @@ router.get('/pdf', verifyToken, async (req, res) => {
     doc.font('ThaiBold').fontSize(16).text(titleText, { align: 'center' });
     doc.moveDown(1);
 
-    // Columns config
+    // Columns config, widths scaled to fit A4 portrait (page width 595pt -
+    // 25pt margins each side = 545pt usable, matching startX/tableWidth below)
     const tableCols = [
-      { label: 'แผนก', width: 95 },
-      { label: 'รหัสบัญชี', width: 55 },
-      { label: 'รหัสศูนย์ฯ', width: 65 },
-      { label: 'รายการ', width: 185 },
-      { label: 'จำนวนเงิน', width: 75, align: 'right' },
-      { label: 'ภาษี 7%', width: 55, align: 'right' },
-      { label: 'ราคารวม', width: 75, align: 'right' },
-      { label: 'ตัดงบทำการ', width: 75, align: 'right' }
+      { label: 'แผนก', width: 75 },
+      { label: 'รหัสบัญชี', width: 45 },
+      { label: 'รหัสศูนย์ฯ', width: 50 },
+      { label: 'รายการ', width: 150 },
+      { label: 'จำนวนเงิน', width: 60, align: 'right' },
+      { label: 'ภาษี 7%', width: 45, align: 'right' },
+      { label: 'ราคารวม', width: 60, align: 'right' },
+      { label: 'ตัดงบทำการ', width: 60, align: 'right' }
     ];
+    const tableWidth = tableCols.reduce((sum, col) => sum + col.width, 0);
 
     const startX = 25;
     const startY = 60;
+    // Leave enough room before the bottom margin (page height 842pt, 25pt
+    // margin) for a full row before forcing a page break.
+    const pageBreakY = 780;
     let currentY = startY;
 
-    // Helper to draw row grid border
+    // Helper to draw a full black grid (all borders) around a row, matching
+    // the "All Borders" look used in the Excel export.
     function drawRowGrid(y, height) {
-      doc.lineWidth(0.5).strokeColor('#CCCCCC');
-      doc.moveTo(startX, y).lineTo(startX + 680, y).stroke();
-      doc.moveTo(startX, y + height).lineTo(startX + 680, y + height).stroke();
+      doc.lineWidth(0.5).strokeColor('#000000');
+      let x = startX;
+      doc.moveTo(x, y).lineTo(x, y + height).stroke();
+      tableCols.forEach(col => {
+        x += col.width;
+        doc.moveTo(x, y).lineTo(x, y + height).stroke();
+      });
+      doc.moveTo(startX, y).lineTo(startX + tableWidth, y).stroke();
+      doc.moveTo(startX, y + height).lineTo(startX + tableWidth, y + height).stroke();
     }
 
     // Helper to draw table header
     function drawHeader(y) {
-      doc.rect(startX, y, 680, 20).fill('#E6F2FF').strokeColor('#999999').lineWidth(0.5).stroke();
+      doc.rect(startX, y, tableWidth, 20).fill('#E6F2FF');
       doc.font('ThaiBold').fontSize(9).fillColor('#000000');
-      
+
       let curX = startX;
       tableCols.forEach(col => {
         doc.text(col.label, curX + 3, y + 5, {
@@ -563,6 +617,7 @@ router.get('/pdf', verifyToken, async (req, res) => {
         });
         curX += col.width;
       });
+      drawRowGrid(y, 20);
     }
 
     // 1. Draw Consolidated Part
@@ -585,7 +640,7 @@ router.get('/pdf', verifyToken, async (req, res) => {
 
       for (const entry of dept.entries) {
         // Page break if near bottom
-        if (currentY > 520) {
+        if (currentY > pageBreakY) {
           doc.addPage();
           currentY = 40;
           drawHeader(currentY);
@@ -658,7 +713,7 @@ router.get('/pdf', verifyToken, async (req, res) => {
     }
 
     // Consolidated Total Row
-    doc.rect(startX, currentY, 680, 18).fill('#F5F5F5').strokeColor('#000000').lineWidth(1).stroke();
+    doc.rect(startX, currentY, tableWidth, 18).fill('#F5F5F5');
     doc.font('ThaiBold').fontSize(9).fillColor('#000000');
     doc.text('รวม', startX + 3, currentY + 4);
 
@@ -686,6 +741,7 @@ router.get('/pdf', verifyToken, async (req, res) => {
       width: tableCols[7].width - 6,
       align: 'right'
     });
+    drawRowGrid(currentY, 18);
 
     doc.end();
   } catch (err) {
@@ -758,6 +814,15 @@ router.get('/yearly-xlsx', verifyToken, async (req, res) => {
       { key: 'total', width: 22 },
       { key: 'cut', width: 24 }
     ];
+    ws.pageSetup = {
+      paperSize: 9,
+      orientation: 'portrait',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalCentered: true,
+      margins: { left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 }
+    };
 
     ws.mergeCells('A1:C1');
     ws.getCell('A1').value = `รายงานสรุปงบประมาณรายปี ${year + 543}`;
@@ -877,20 +942,35 @@ router.get('/yearly-pdf', verifyToken, async (req, res) => {
 
     // Table
     let ty = baseY + 30;
+    const tableX = 60;
+    const tableW = 475;
     const cols = [
       { x: 60, w: 200, label: 'เดือน', align: 'left' },
       { x: 260, w: 140, label: 'ยอดรวม (บาท)', align: 'right' },
       { x: 400, w: 135, label: 'ยอดงบที่ตัด (บาท)', align: 'right' }
     ];
 
+    // Full black grid (vertical + horizontal), matching the "All Borders"
+    // look used by the monthly PDF/Excel exports.
+    const drawTableGrid = (y, height) => {
+      doc.lineWidth(0.5).strokeColor('#000000');
+      let x = tableX;
+      doc.moveTo(x, y).lineTo(x, y + height).stroke();
+      cols.forEach(c => {
+        x = c.x + c.w;
+        doc.moveTo(x, y).lineTo(x, y + height).stroke();
+      });
+      doc.moveTo(tableX, y).lineTo(tableX + tableW, y).stroke();
+      doc.moveTo(tableX, y + height).lineTo(tableX + tableW, y + height).stroke();
+    };
+
     const drawRow = (cells, bold, fill) => {
-      if (fill) doc.rect(60, ty, 475, 20).fill(fill);
+      if (fill) doc.rect(tableX, ty, tableW, 20).fill(fill);
       doc.font(bold ? 'ThaiBold' : 'ThaiRegular').fontSize(10).fillColor('#000000');
       cols.forEach((c, i) => {
         doc.text(cells[i], c.x + 3, ty + 5, { width: c.w - 6, align: c.align });
       });
-      doc.lineWidth(0.5).strokeColor('#DDDDDD')
-        .moveTo(60, ty + 20).lineTo(535, ty + 20).stroke();
+      drawTableGrid(ty, 20);
       ty += 20;
     };
 

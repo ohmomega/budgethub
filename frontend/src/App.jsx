@@ -249,9 +249,6 @@ export default function App() {
               <h1 className="text-lg font-bold tracking-tight text-slate-800 leading-none">
                 BudgetHub
               </h1>
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mt-0.5">
-                Provincial Electricity
-              </span>
             </div>
           </div>
 
