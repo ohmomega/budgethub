@@ -284,17 +284,17 @@ export default function ManageUsers({ user: currentUser, lang }) {
                       <td className="px-6 py-4 font-bold text-slate-800 flex items-center gap-2">
                         <span>{u.username}</span>
                         {isYou && (
-                          <span className="px-1.5 py-0.5 bg-cyan-50 text-cyan-600 text-[9px] font-black rounded uppercase">
+                          <span className="px-1.5 py-0.5 bg-cyan-50 text-cyan-600 text-[11px] font-black rounded uppercase">
                             {t.youBadge}
                           </span>
                         )}
-                        <span className="text-[10px] text-slate-400 font-medium block mt-0.5 font-sans">
+                        <span className="text-[12px] text-slate-400 font-medium block mt-0.5 font-sans">
                           {u.full_name}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-slate-500 font-sans">{u.email || '-'}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-0.5 text-[9px] font-black rounded-md tracking-wider ${
+                        <span className={`px-2 py-0.5 text-[11px] font-black rounded-md tracking-wider ${
                           u.role === 'admin' ? 'bg-amber-100 text-amber-700' :
                           u.role === 'editor' ? 'bg-teal-100 text-teal-700' :
                           'bg-slate-100 text-slate-500'

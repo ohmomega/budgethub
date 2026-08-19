@@ -71,7 +71,7 @@ All data is stored locally in an embedded SQLite file.
 
 ## Download & install (for users)
 
-1. Go to the **[Releases page](https://github.com/ohmomega/budgethub/releases/latest)** and download **`BudgetHub Setup 1.0.5.exe`**.
+1. Go to the **[Releases page](https://github.com/ohmomega/budgethub/releases/latest)** and download **`BudgetHub Setup 1.0.6.exe`**.
 2. Run the installer and follow the wizard (you can choose the install folder).
 3. Launch **BudgetHub** from the Start Menu or Desktop shortcut.
 
@@ -88,7 +88,7 @@ here is how to get past each warning:
 - Click the **•••** (more) button next to the download, then choose **Keep**.
 - If asked again, choose **Keep anyway** / **Show more → Keep anyway**.
 
-**2) When you run `BudgetHub.Setup.1.0.5.exe` (blue "Windows protected your PC" box):**
+**2) When you run `BudgetHub.Setup.1.0.6.exe` (blue "Windows protected your PC" box):**
 - Click the **More info** link.
 - Then click the **Run anyway** button that appears.
 
@@ -141,7 +141,7 @@ npm start
 
 # 5. Build the distributable Windows installer
 npm run dist
-#  -> output: dist_electron\BudgetHub Setup 1.0.5.exe
+#  -> output: dist_electron\BudgetHub Setup 1.0.6.exe
 ```
 
 ### Project structure
@@ -202,7 +202,7 @@ BudgetHub เป็น **โปรแกรมเดสก์ท็อปบน 
 
 ## ดาวน์โหลดและติดตั้ง (สำหรับผู้ใช้งาน)
 
-1. ไปที่ **[หน้า Releases](https://github.com/ohmomega/budgethub/releases/latest)** แล้วดาวน์โหลด **`BudgetHub Setup 1.0.5.exe`**
+1. ไปที่ **[หน้า Releases](https://github.com/ohmomega/budgethub/releases/latest)** แล้วดาวน์โหลด **`BudgetHub Setup 1.0.6.exe`**
 2. เปิดไฟล์ติดตั้งและทำตามขั้นตอน (เลือกโฟลเดอร์ติดตั้งได้)
 3. เปิดโปรแกรม **BudgetHub** จาก Start Menu หรือไอคอนบนหน้าจอ
 
@@ -218,7 +218,7 @@ BudgetHub เป็นโปรแกรมฟรีและโอเพนซ�
 - กดปุ่ม **•••** (จุดสามจุด) ข้างไฟล์ที่ดาวน์โหลด แล้วเลือก **Keep / เก็บไฟล์ไว้**
 - หากถามซ้ำ ให้เลือก **Keep anyway / เก็บไว้อยู่ดี**
 
-**2) ตอนเปิดไฟล์ `BudgetHub.Setup.1.0.5.exe` (กล่องสีน้ำเงิน "Windows protected your PC"):**
+**2) ตอนเปิดไฟล์ `BudgetHub.Setup.1.0.6.exe` (กล่องสีน้ำเงิน "Windows protected your PC"):**
 - กดลิงก์ **More info**
 - จากนั้นกดปุ่ม **Run anyway** ที่ปรากฏขึ้น
 
@@ -262,7 +262,7 @@ npm start
 
 # 5. สร้างไฟล์ติดตั้งสำหรับแจกจ่าย
 npm run dist
-#  -> ได้ไฟล์: dist_electron\BudgetHub Setup 1.0.5.exe
+#  -> ได้ไฟล์: dist_electron\BudgetHub Setup 1.0.6.exe
 ```
 
 ### โครงสร้างโปรเจค

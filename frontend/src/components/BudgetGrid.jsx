@@ -22,7 +22,10 @@ import {
   Edit3,
   X,
   Building2,
-  Settings2
+  Settings2,
+  GripVertical,
+  ArrowUpDown,
+  History
 } from 'lucide-react';
 
 const THAI_MONTH_NAMES = [
@@ -70,7 +73,15 @@ const dict = {
     placeholderCC: 'เลือกศูนย์ต้นทุน...',
     confirmDelete: 'คุณต้องการลบรายการนี้ใช่หรือไม่?',
     confirmFinalize: 'คุณต้องการยืนยันแผ่นงบประมาณนี้ใช่หรือไม่? การยืนยันจะปิดงวดและล็อคแผ่นงานไม่ให้แก้ไขเพิ่มเติม',
-    placeholderReason: 'เหตุผล (ถ้ามี)'
+    placeholderReason: 'เหตุผล (ถ้ามี)',
+    reorderBtn: 'แก้ไขลำดับ',
+    reorderDone: 'เสร็จสิ้น',
+    reorderTitle: 'โหมดแก้ไขลำดับแถว',
+    reorderHint: 'ลากแถวขึ้น-ลง หรือกดลูกศร ▲ ▼ ในคอลัมน์การจัดการ เพื่อย้ายแถว — กด "เสร็จสิ้น" เมื่อจัดลำดับเรียบร้อยแล้ว',
+    reorderLocked: 'กดปุ่ม "แก้ไขลำดับ" ก่อน จึงจะย้ายแถวได้',
+    autofillLabel: 'ล่าสุด',
+    autofillHint: 'กด Tab เพื่อเติม',
+    placeholderItem: 'ชื่อรายการ'
   },
   EN: {
     backBtn: 'Back',
@@ -106,7 +117,15 @@ const dict = {
     placeholderCC: 'Select cost center...',
     confirmDelete: 'Are you sure you want to delete this row?',
     confirmFinalize: 'Are you sure you want to finalize this budget sheet? This will lock it for further edits.',
-    placeholderReason: 'Reason (if any)'
+    placeholderReason: 'Reason (if any)',
+    reorderBtn: 'Reorder rows',
+    reorderDone: 'Done',
+    reorderTitle: 'Row reordering mode',
+    reorderHint: 'Drag a row up or down, or use the ▲ ▼ arrows in the Actions column to move it — click "Done" when the order looks right.',
+    reorderLocked: 'Click "Reorder rows" first to move rows',
+    autofillLabel: 'Last used',
+    autofillHint: 'Press Tab to fill',
+    placeholderItem: 'Item name'
   }
 };
 
@@ -117,18 +136,212 @@ function formatMoney(value) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// ---------------------------------------------------------------------------
+// Autofill — "repeat what I just typed"
+//
+// The sheet remembers ONLY the most recent value typed in each kind of cell
+// (account code / item / amount / reason). When the next empty cell of that
+// kind is focused, that single value is offered as a one-tap suggestion:
+// press Tab or click the chip to fill it in. It is deliberately not a history
+// list — only the latest value is kept, which is what repeated data entry
+// (same account code down a column, same reason for several rows) needs.
+// ---------------------------------------------------------------------------
+const AUTOFILL_KEY = 'bh_autofill_last_v1';
+const AUTOFILL_FIELDS = ['account_code', 'item_name', 'amount', 'reason_note'];
+
+// Values the app itself writes into a brand new row. They count as "empty" so
+// the suggestion still appears on a freshly added row.
+const NEW_ROW_PLACEHOLDERS = ['รายการใหม่', 'รายการใหม่ (แทรก)'];
+
+function loadLastTyped() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(AUTOFILL_KEY) || '{}');
+    if (!parsed || typeof parsed !== 'object') return {};
+    // Keep only the fields we know about, so an old/edited entry can't leak in.
+    return AUTOFILL_FIELDS.reduce((acc, f) => {
+      if (parsed[f] !== undefined && parsed[f] !== null && parsed[f] !== '') acc[f] = parsed[f];
+      return acc;
+    }, {});
+  } catch {
+    return {};
+  }
+}
+
+// The little chip that offers the remembered value. It is rendered in a portal
+// because the sheet container clips its own overflow, which would cut off a
+// suggestion opened on one of the last rows.
+function SuggestionChip({ anchorRef, show, text, label, hint, onAccept }) {
+  const [coords, setCoords] = useState(null);
+
+  useEffect(() => {
+    if (!show) {
+      setCoords(null);
+      return;
+    }
+    const place = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      // Flip above the cell when there is no room below, so a suggestion on the
+      // last row of a long sheet is never half off the bottom of the window.
+      const flipUp = r.bottom + 44 > window.innerHeight;
+      setCoords({
+        top: flipUp ? undefined : r.bottom + 4,
+        bottom: flipUp ? window.innerHeight - r.top + 4 : undefined,
+        left: r.left,
+        width: r.width,
+      });
+    };
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [show, anchorRef]);
+
+  if (!show || !coords) return null;
+
+  return createPortal(
+    <button
+      type="button"
+      // A plain click would blur the cell first (and close the chip), so the
+      // suggestion is accepted on mousedown with the blur suppressed.
+      onMouseDown={(e) => { e.preventDefault(); onAccept(); }}
+      style={{
+        position: 'fixed',
+        top: coords.top,
+        bottom: coords.bottom,
+        left: coords.left,
+        minWidth: Math.max(coords.width, 180),
+        maxWidth: 340,
+      }}
+      className="autofill-chip"
+    >
+      <History className="h-4 w-4 shrink-0" />
+      <span className="font-black shrink-0">{label}:</span>
+      <span className="truncate font-bold flex-1 min-w-0 text-left">{text}</span>
+      <span className="shrink-0 opacity-70 font-semibold hidden sm:inline">{hint}</span>
+    </button>,
+    document.body
+  );
+}
+
+// Text cell with the autofill suggestion attached. Commits on blur; ENTER
+// confirms, ESC dismisses the suggestion (or restores the original value).
+function AutofillInput({ value, suggestion, disabled, onCommit, className, placeholder, t, treatAsEmpty = [] }) {
+  const [text, setText] = useState(value ?? '');
+  const [focused, setFocused] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const ref = useRef(null);
+  const committedRef = useRef(value ?? '');
+  const pendingRef = useRef(false);
+
+  // Keep in sync with values coming from outside (reload, another edit), but
+  // never stomp on what the user is typing — nor on a value that is still being
+  // saved, which would otherwise flash the old text back into the cell until
+  // the server replies.
+  useEffect(() => {
+    if (focused) return;
+    const incoming = value ?? '';
+    if (pendingRef.current) {
+      if (incoming !== committedRef.current) return; // our save is still in flight
+      pendingRef.current = false;
+    }
+    setText(incoming);
+  }, [value, focused]);
+
+  const commit = (v) => {
+    if (v === committedRef.current) return;
+    committedRef.current = v;
+    pendingRef.current = true;
+    onCommit(v);
+  };
+
+  const isEmptyish = (v) => {
+    const s = String(v ?? '').trim();
+    return s === '' || treatAsEmpty.includes(s);
+  };
+
+  // Offer the remembered value on an empty cell, or while what has been typed
+  // so far is still the beginning of it.
+  const canSuggest = !!suggestion && !disabled && suggestion !== text &&
+    (isEmptyish(text) || suggestion.toLowerCase().startsWith(String(text).toLowerCase()));
+  const show = focused && !dismissed && canSuggest;
+
+  const accept = () => {
+    setText(suggestion);
+    setDismissed(true);
+    commit(suggestion);
+    if (ref.current) ref.current.focus();
+  };
+
+  return (
+    <>
+      <input
+        ref={ref}
+        type="text"
+        value={text}
+        disabled={disabled}
+        placeholder={placeholder}
+        onFocus={() => { setFocused(true); setDismissed(false); }}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (show && e.key === 'Tab') {
+            e.preventDefault(); // Tab fills the suggestion in and stays put
+            accept();
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            e.target.blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            if (show) {
+              setDismissed(true); // first ESC just hides the suggestion
+            } else {
+              setText(value ?? '');
+              e.target.blur();
+            }
+          }
+        }}
+        onBlur={() => { setFocused(false); setDismissed(false); commit(text); }}
+        className={className}
+      />
+      <SuggestionChip
+        anchorRef={ref}
+        show={show}
+        text={suggestion}
+        label={t.autofillLabel}
+        hint={t.autofillHint}
+        onAccept={accept}
+      />
+    </>
+  );
+}
+
 // Amount cell: a formatted text input (not a number spinner).
 //  - shows the value with thousands separators while idle (500,000.00)
 //  - shows the raw editable number while focused, with everything selected
 //  - commits on ENTER (confirm) or on blur; ESC cancels and restores the value
-function AmountInput({ value, disabled, onCommit }) {
+//  - offers the last amount typed as an autofill suggestion on an empty row
+function AmountInput({ value, suggestion, disabled, onCommit, t }) {
   const [text, setText] = useState(formatMoney(value));
   const [editing, setEditing] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const ref = useRef(null);
+  const committedRef = useRef(Number(value));
+  const pendingRef = useRef(false);
 
   // Keep the displayed value in sync when it changes from outside (e.g. reload),
-  // but never stomp on what the user is currently typing.
+  // but never stomp on what the user is typing, nor on an amount that is still
+  // being saved (that flashed the previous amount back for a moment).
   useEffect(() => {
-    if (!editing) setText(formatMoney(value));
+    if (editing) return;
+    if (pendingRef.current) {
+      if (Number(value) !== committedRef.current) return; // save still in flight
+      pendingRef.current = false;
+    }
+    setText(formatMoney(value));
   }, [value, editing]);
 
   const commit = (raw) => {
@@ -138,38 +351,79 @@ function AmountInput({ value, disabled, onCommit }) {
       return;
     }
     setText(formatMoney(parsed));
-    if (parsed !== Number(value)) onCommit(parsed);
+    if (parsed === committedRef.current) return;
+    committedRef.current = parsed;
+    pendingRef.current = true;
+    onCommit(parsed);
+  };
+
+  // A new row starts at 0, which counts as empty for the suggestion.
+  const typed = String(text).replace(/,/g, '').trim();
+  const suggestionText = suggestion == null ? '' : String(suggestion);
+  const canSuggest = suggestion != null && !disabled && Number(suggestion) !== Number(value) &&
+    (typed === '' || typed === '0' || suggestionText.startsWith(typed));
+  const show = editing && !dismissed && canSuggest;
+
+  const accept = () => {
+    setText(suggestionText);
+    setDismissed(true);
+    if (Number(suggestion) !== committedRef.current) {
+      committedRef.current = Number(suggestion);
+      pendingRef.current = true;
+      onCommit(Number(suggestion));
+    }
+    if (ref.current) ref.current.focus();
   };
 
   return (
-    <input
-      type="text"
-      inputMode="decimal"
-      value={text}
-      disabled={disabled}
-      onFocus={(e) => {
-        setEditing(true);
-        setText(value == null ? '' : String(value));
-        // select after the raw value has been swapped in
-        requestAnimationFrame(() => e.target.select());
-      }}
-      onChange={(e) => setText(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          e.target.blur(); // ENTER confirms the typed amount
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
+    <>
+      <input
+        ref={ref}
+        type="text"
+        inputMode="decimal"
+        value={text}
+        disabled={disabled}
+        onFocus={(e) => {
+          setEditing(true);
+          setDismissed(false);
           setText(value == null ? '' : String(value));
-          e.target.blur();
-        }
-      }}
-      onBlur={() => {
-        setEditing(false);
-        commit(text);
-      }}
-      className="bg-transparent w-full text-right text-slate-800 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 font-bold text-xs"
-    />
+          // select after the raw value has been swapped in
+          requestAnimationFrame(() => e.target.select());
+        }}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (show && e.key === 'Tab') {
+            e.preventDefault(); // Tab fills the suggested amount in
+            accept();
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            e.target.blur(); // ENTER confirms the typed amount
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            if (show) {
+              setDismissed(true);
+            } else {
+              setText(value == null ? '' : String(value));
+              e.target.blur();
+            }
+          }
+        }}
+        onBlur={() => {
+          setEditing(false);
+          setDismissed(false);
+          commit(text);
+        }}
+        className="bg-transparent w-full text-right text-slate-800 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 font-bold text-sm"
+      />
+      <SuggestionChip
+        anchorRef={ref}
+        show={show}
+        text={formatMoney(suggestion)}
+        label={t.autofillLabel}
+        hint={t.autofillHint}
+        onAccept={accept}
+      />
+    </>
   );
 }
 
@@ -208,7 +462,43 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
+  // Row reordering is a deliberate mode ("แก้ไขลำดับ" / "Reorder rows"): rows
+  // only become draggable — and the up/down arrows only work — once it is on.
+  // Outside the mode the cells stay plain editable fields, so text can be
+  // selected with the mouse without the row running away as a drag.
+  const [reorderMode, setReorderMode] = useState(false);
+
+  // Autofill memory: the single most recent value typed in each kind of cell.
+  const [lastTyped, setLastTyped] = useState(loadLastTyped);
+
   const t = dict[lang];
+
+  // Remember a value the user just typed, so the next empty cell of the same
+  // kind can offer it. Only the latest value per field is kept.
+  const rememberTyped = (field, value) => {
+    if (!AUTOFILL_FIELDS.includes(field)) return;
+
+    let remembered;
+    if (field === 'amount') {
+      const n = Number(value);
+      if (!isFinite(n) || n <= 0) return;
+      remembered = n;
+    } else {
+      remembered = String(value ?? '').trim();
+      if (!remembered || NEW_ROW_PLACEHOLDERS.includes(remembered)) return;
+    }
+
+    setLastTyped(prev => {
+      if (prev[field] === remembered) return prev;
+      const next = { ...prev, [field]: remembered };
+      try {
+        localStorage.setItem(AUTOFILL_KEY, JSON.stringify(next));
+      } catch {
+        // A full / blocked storage must never break data entry.
+      }
+      return next;
+    });
+  };
 
   // Load departments
   useEffect(() => {
@@ -271,20 +561,6 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
     fetchEntries();
   }, [selectedDeptId, periodInfo]);
 
-  // Text cells commit on blur; pressing Enter confirms the edit (by blurring),
-  // and Escape cancels by restoring the original value. This matches the amount
-  // cell's behaviour so the whole row edits consistently from the keyboard.
-  const handleCellKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      e.target.blur();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      e.target.value = e.target.defaultValue;
-      e.target.blur();
-    }
-  };
-
   // Handle cell edit save (blur)
   const handleCellBlur = async (entry, field, value) => {
     // If value has not changed, do nothing
@@ -303,6 +579,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
       // Update local state with recalculated database values
       setEntries(prev => prev.map(e => e.id === entry.id ? res.data : e));
       setSaveStatus('saved');
+      rememberTyped(field, value); // feed the autofill suggestion
     } catch (err) {
       console.error('Update entry failed:', err);
       setSaveStatus('error');
@@ -383,10 +660,21 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
     }
   };
 
+  // Turn row reordering on / off. Reordering works on the real row order, so a
+  // filtered view is cleared first — otherwise "move up" would jump over rows
+  // the user cannot currently see.
+  const toggleReorderMode = () => {
+    setActiveDropdownRow(null); // a cost-center menu left open would float over locked cells
+    setReorderMode(prev => {
+      if (!prev) setSearchTerm('');
+      return !prev;
+    });
+  };
+
   // Move row up or down by adjusting sort_order
   const handleMoveRow = async (index, direction) => {
     const isReadOnly = user.role === 'viewer' || (period && period.status === 'closed');
-    if (isReadOnly) return;
+    if (isReadOnly || !reorderMode) return;
 
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= entries.length) return;
@@ -431,15 +719,15 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
     }
   };
 
-  // Drag and drop handlers
+  // Drag and drop handlers (only active while the reorder mode is on)
   const handleDragStart = (e, index) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !reorderMode) return;
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e, index) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !reorderMode) return;
     e.preventDefault();
     if (dragOverIndex !== index) {
       setDragOverIndex(index);
@@ -447,7 +735,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
   };
 
   const handleDrop = async (e, index) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !reorderMode) return;
     e.preventDefault();
     if (draggedIndex !== null && draggedIndex !== index) {
       await handleDragReorder(draggedIndex, index);
@@ -621,6 +909,9 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
   const ccCardsList = Object.values(ccGroups);
 
   const isReadOnly = user.role === 'viewer' || (period && period.status === 'closed');
+  // While rows are being reordered the cells are locked, so a drag never lands
+  // inside a text box and edits cannot happen by accident mid-drag.
+  const cellsLocked = isReadOnly || reorderMode;
   const monthName = lang === 'TH' ? THAI_MONTH_NAMES[periodInfo.month - 1] : EN_MONTH_NAMES[periodInfo.month - 1];
   const yearName = lang === 'TH' ? periodInfo.year + 543 : periodInfo.year;
 
@@ -733,7 +1024,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                 <Edit2 className="h-4 w-4 text-slate-350" />
               </h2>
               {period && (
-                <span className={`px-2 py-0.5 text-[10px] font-black rounded-md tracking-wider ${
+                <span className={`px-2 py-0.5 text-[12px] font-black rounded-md tracking-wider ${
                   period.status === 'open' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
                 }`}>
                   {period.status === 'open' ? 'DRAFT' : 'FINALIZED'}
@@ -741,7 +1032,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
               )}
 
               {/* Status Indicator */}
-              <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 pl-2">
+              <div className="flex items-center gap-1 text-[12px] font-bold text-slate-400 pl-2">
                 {saveStatus === 'saving' && (
                   <span className="text-purple-600 font-bold flex items-center gap-1">
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -763,7 +1054,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
               </div>
             </div>
 
-            <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
+            <span className="text-[12px] text-slate-400 font-bold block mt-0.5">
               {lang === 'TH' ? 'แก้ไขล่าสุด' : 'Last modified'}: {period && (period.last_modified || period.created_at) ? new Date(period.last_modified || period.created_at).toLocaleString(lang === 'TH' ? 'th-TH' : 'en-GB') : '-'}
             </span>
           </div>
@@ -865,7 +1156,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                   {cc.code} - {cc.name}
                 </span>
                 
-                <div className="space-y-1 text-[11px] font-semibold text-slate-500">
+                <div className="space-y-1 text-[13px] font-semibold text-slate-500">
                   <div className="flex justify-between">
                     <span>{t.beforeTax}</span>
                     <span className="text-slate-800">฿{cc.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -908,8 +1199,9 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={reorderMode}
                 placeholder={lang === 'TH' ? 'ค้นหา รหัส, ชื่อรายการ, ศูนย์ต้นทุน...' : 'Search code, item, CC...'}
-                className="w-full text-xs bg-white border border-slate-200 rounded-xl pl-9 pr-8 py-2 focus:outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-light)] font-semibold text-slate-700 shadow-sm"
+                className="w-full text-sm bg-white border border-slate-200 rounded-xl pl-9 pr-8 py-2 focus:outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-light)] font-semibold text-slate-700 shadow-sm disabled:bg-slate-100 disabled:text-slate-400"
               />
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
               {searchTerm && (
@@ -924,7 +1216,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
             </div>
 
             {searchTerm && (
-              <span className="text-[10px] font-bold text-[var(--color-primary)] bg-[var(--color-primary-bg-light)] border border-[var(--color-primary-light)] px-2.5 py-1 rounded-lg shrink-0 transition animate-fade-in">
+              <span className="text-[12px] font-bold text-[var(--color-primary)] bg-[var(--color-primary-bg-light)] border border-[var(--color-primary-light)] px-2.5 py-1 rounded-lg shrink-0 transition animate-fade-in">
                 {lang === 'TH' 
                   ? `พบ ${filteredEntries.length} จาก ${entries.length} รายการ`
                   : `Found ${filteredEntries.length} of ${entries.length} entries`
@@ -934,38 +1226,66 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
           </div>
           
           {!isReadOnly && (
-            <button
-              onClick={handleAddRow}
-              className="glass-btn-primary py-2 px-4 text-xs font-bold shrink-0 self-end sm:self-auto"
-            >
-              <Plus className="h-4 w-4" />
-              <span>{t.addBtn}</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              {/* Reorder mode toggle — sits next to "Add Row" */}
+              <button
+                onClick={toggleReorderMode}
+                disabled={!reorderMode && entries.length < 2}
+                title={t.reorderTitle}
+                className={`py-2 px-4 text-sm font-bold rounded-xl border transition cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-default ${
+                  reorderMode
+                    ? 'bg-amber-500 border-amber-500 text-white hover:bg-amber-600'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-[var(--color-primary)]'
+                }`}
+              >
+                {reorderMode ? <Check className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4" />}
+                <span>{reorderMode ? t.reorderDone : t.reorderBtn}</span>
+              </button>
+
+              <button
+                onClick={handleAddRow}
+                className="glass-btn-primary py-2 px-4 text-sm font-bold"
+              >
+                <Plus className="h-4 w-4" />
+                <span>{t.addBtn}</span>
+              </button>
+            </div>
           )}
         </div>
+
+        {/* Reorder mode banner — explains the two ways to move a row */}
+        {reorderMode && !isReadOnly && (
+          <div className="flex items-start gap-2.5 bg-amber-50 border-b border-amber-200 px-4 py-3 animate-fade-in">
+            <GripVertical className="h-4.5 w-4.5 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800 font-semibold leading-relaxed">
+              <span className="font-black mr-1">{t.reorderTitle}:</span>
+              {t.reorderHint}
+            </p>
+          </div>
+        )}
 
         {/* Table Element — fits the container (no horizontal scrollbar). */}
         <div className="w-full min-h-[320px]">
           <table className="w-full table-fixed border-collapse">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-200">
-                <th className="grid-header w-[4%]">{t.colNo}</th>
+                <th className="grid-header w-[5%]">{t.colNo}</th>
                 <th className="grid-header w-[11%]">{t.colAccount}</th>
                 <th className="grid-header w-[12%]">{t.colCostCenter}</th>
-                <th className="grid-header w-[19%]">{t.colItem}</th>
+                <th className="grid-header w-[16%]">{t.colItem}</th>
                 <th className="grid-header w-[9%]">{t.colAmount}</th>
                 <th className="grid-header w-[7%]">{t.colTax}</th>
                 <th className="grid-header w-[9%]">{t.colTotal}</th>
                 <th className="grid-header w-[11%]">{t.colReason}</th>
                 <th className="grid-header w-[6%]">{t.colDeduct}</th>
                 <th className="grid-header w-[6%]">{t.colType}</th>
-                {!isReadOnly && <th className="grid-header w-[9%]">{t.colAction}</th>}
+                {!isReadOnly && <th className="grid-header w-[11%]">{t.colAction}</th>}
               </tr>
             </thead>
             <tbody>
               {filteredEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={isReadOnly ? 10 : 11} className="py-20 text-center text-slate-400 text-xs font-semibold">
+                  <td colSpan={isReadOnly ? 10 : 11} className="py-20 text-center text-slate-400 text-sm font-semibold">
                     {searchTerm ? (lang === 'TH' ? 'ไม่พบรายการที่ตรงกับการค้นหา' : 'No matching entries found') : (lang === 'TH' ? 'ไม่มีรายการงบประมาณรายจ่ายในงวดนี้' : 'No budget entries in this period')}
                   </td>
                 </tr>
@@ -973,36 +1293,45 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                 filteredEntries.map((entry, index) => {
                   const originalIndex = entries.findIndex(e => e.id === entry.id);
                   return (
-                    <tr 
-                      key={entry.id} 
-                      draggable={!isReadOnly && !searchTerm}
+                    <tr
+                      key={entry.id}
+                      draggable={!isReadOnly && reorderMode && !searchTerm}
                       onDragStart={(e) => handleDragStart(e, originalIndex)}
                       onDragOver={(e) => handleDragOver(e, originalIndex)}
                       onDrop={(e) => handleDrop(e, originalIndex)}
                       onDragEnd={handleDragEnd}
-                      className={`hover:bg-slate-50/50 border-b border-slate-100 transition-colors ${
+                      className={`border-b border-slate-100 transition-colors ${
                         entry.is_budget_cut ? 'bg-[var(--color-primary-bg-light)]/40 font-semibold' : ''
                       } ${activeDropdownRow === entry.id ? 'relative z-20' : ''} ${
+                        reorderMode ? 'select-none hover:bg-amber-50' : 'hover:bg-slate-50/50'
+                      } ${
                         draggedIndex === originalIndex ? 'opacity-40 bg-slate-100' : ''
                       } ${
                         dragOverIndex === originalIndex ? 'border-t-2 border-t-[var(--color-primary)]' : ''
                       }`}
-                      style={{ cursor: isReadOnly || searchTerm ? 'default' : 'grab' }}
+                      style={{ cursor: !isReadOnly && reorderMode && !searchTerm ? 'grab' : 'default' }}
                     >
-                      {/* 1. Drag icon & No. */}
+                      {/* 1. Drag handle (reorder mode) & No. */}
                       <td className="grid-cell text-center text-slate-400 font-bold font-sans">
-                        {originalIndex + 1}
+                        {reorderMode && !isReadOnly ? (
+                          <span className="inline-flex items-center gap-0.5 text-amber-600">
+                            <GripVertical className="h-4 w-4" />
+                            <span>{originalIndex + 1}</span>
+                          </span>
+                        ) : (
+                          originalIndex + 1
+                        )}
                       </td>
 
                       {/* 2. Account Code */}
                       <td className="grid-cell">
-                        <input
-                          type="text"
-                          defaultValue={entry.account_code || ''}
-                          onBlur={(e) => handleCellBlur(entry, 'account_code', e.target.value)}
-                          onKeyDown={handleCellKeyDown}
-                          className="bg-transparent w-full text-slate-800 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 text-xs font-semibold"
-                          disabled={isReadOnly}
+                        <AutofillInput
+                          value={entry.account_code || ''}
+                          suggestion={lastTyped.account_code}
+                          onCommit={(val) => handleCellBlur(entry, 'account_code', val)}
+                          className="bg-transparent w-full text-slate-800 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 text-sm font-semibold disabled:cursor-default"
+                          disabled={cellsLocked}
+                          t={t}
                         />
                       </td>
 
@@ -1015,7 +1344,7 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                           setActiveDropdownRow={setActiveDropdownRow}
                           onCCSelect={(val) => handleCellBlur(entry, 'cost_center_id', val)}
                           onCreateNewCC={(code) => handleCreateCostCenter(code, entry)}
-                          isReadOnly={isReadOnly}
+                          isReadOnly={cellsLocked}
                           lang={lang}
                           isDropup={index >= 2 && index >= entries.length - 2}
                         />
@@ -1023,13 +1352,15 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
 
                       {/* 4. Item details */}
                       <td className="grid-cell">
-                        <input
-                          type="text"
-                          defaultValue={entry.item_name || ''}
-                          onBlur={(e) => handleCellBlur(entry, 'item_name', e.target.value)}
-                          onKeyDown={handleCellKeyDown}
-                          className="bg-transparent w-full text-slate-800 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 text-xs font-bold truncate"
-                          disabled={isReadOnly}
+                        <AutofillInput
+                          value={entry.item_name || ''}
+                          suggestion={lastTyped.item_name}
+                          treatAsEmpty={NEW_ROW_PLACEHOLDERS}
+                          onCommit={(val) => handleCellBlur(entry, 'item_name', val)}
+                          className="bg-transparent w-full text-slate-800 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 text-sm font-bold truncate disabled:cursor-default"
+                          placeholder={t.placeholderItem}
+                          disabled={cellsLocked}
+                          t={t}
                         />
                       </td>
 
@@ -1037,31 +1368,33 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                       <td className="grid-cell">
                         <AmountInput
                           value={entry.amount}
-                          disabled={isReadOnly}
+                          suggestion={lastTyped.amount}
+                          disabled={cellsLocked}
                           onCommit={(val) => handleCellBlur(entry, 'amount', val)}
+                          t={t}
                         />
                       </td>
 
                       {/* 6. Tax (read-only) */}
-                      <td className="grid-cell text-right text-slate-400 font-bold text-xs font-sans">
+                      <td className="grid-cell text-right text-slate-400 font-bold text-sm font-sans">
                         {parseFloat(entry.tax_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
 
                       {/* 7. Total amount (read-only) */}
-                      <td className="grid-cell text-right text-slate-800 font-black text-xs font-sans">
+                      <td className="grid-cell text-right text-slate-800 font-black text-sm font-sans">
                         {parseFloat(entry.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
 
                       {/* 8. Reason */}
                       <td className="grid-cell">
-                        <input
-                          type="text"
-                          defaultValue={entry.reason_note || ''}
-                          onBlur={(e) => handleCellBlur(entry, 'reason_note', e.target.value)}
-                          onKeyDown={handleCellKeyDown}
-                          className="bg-transparent w-full text-slate-600 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 text-xs placeholder-slate-400"
+                        <AutofillInput
+                          value={entry.reason_note || ''}
+                          suggestion={lastTyped.reason_note}
+                          onCommit={(val) => handleCellBlur(entry, 'reason_note', val)}
+                          className="bg-transparent w-full text-slate-600 focus:outline-none focus:bg-slate-100 px-1 py-0.5 rounded border border-transparent focus:border-slate-300 text-sm placeholder-slate-400 disabled:cursor-default"
                           placeholder={t.placeholderReason}
-                          disabled={isReadOnly}
+                          disabled={cellsLocked}
+                          t={t}
                         />
                       </td>
 
@@ -1071,8 +1404,8 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                           type="checkbox"
                           checked={!!entry.is_budget_cut}
                           onChange={(e) => handleCellBlur(entry, 'is_budget_cut', e.target.checked)}
-                          className="h-4.5 w-4.5 text-[var(--color-primary)] focus:ring-[var(--color-primary)] border-slate-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-default"
-                          disabled={isReadOnly}
+                          className="h-5 w-5 text-[var(--color-primary)] focus:ring-[var(--color-primary)] border-slate-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                          disabled={cellsLocked}
                         />
                       </td>
 
@@ -1081,8 +1414,8 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                         <select
                           value={entry.entry_type || 'รายจ่าย'}
                           onChange={(e) => handleCellBlur(entry, 'entry_type', e.target.value)}
-                          className="bg-transparent w-full text-xs font-bold text-slate-700 focus:outline-none cursor-pointer focus:bg-slate-100 p-1 border border-transparent rounded focus:border-slate-200"
-                          disabled={isReadOnly}
+                          className="bg-transparent w-full text-sm font-bold text-slate-700 focus:outline-none cursor-pointer focus:bg-slate-100 p-1 border border-transparent rounded focus:border-slate-200"
+                          disabled={cellsLocked}
                         >
                           <option value="รายจ่าย">{lang === 'TH' ? 'รายจ่าย' : 'Expense'}</option>
                         </select>
@@ -1095,28 +1428,37 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                             {/* Insert row */}
                             <button
                               onClick={() => handleInsertRow(entry.id)}
-                              className="text-[var(--color-primary)] p-1 hover:bg-slate-100 rounded-lg transition"
-                              title="Insert row below"
+                              disabled={reorderMode}
+                              className="text-[var(--color-primary)] p-1 hover:bg-slate-100 rounded-lg transition disabled:opacity-20"
+                              title={lang === 'TH' ? 'แทรกแถวด้านล่าง' : 'Insert row below'}
                             >
                               <Plus className="h-4 w-4" />
                             </button>
 
-                            {/* Move Up */}
+                            {/* Move Up — only usable in the reorder mode */}
                             <button
                               onClick={() => handleMoveRow(originalIndex, -1)}
-                              disabled={originalIndex === 0 || !!searchTerm}
-                              className="text-slate-400 hover:text-slate-700 disabled:opacity-20 p-1 hover:bg-slate-100 rounded-lg transition"
-                              title="Move row up"
+                              disabled={!reorderMode || originalIndex === 0 || !!searchTerm}
+                              className={`p-1 rounded-lg transition disabled:opacity-20 ${
+                                reorderMode
+                                  ? 'text-amber-600 hover:text-amber-800 hover:bg-amber-50'
+                                  : 'text-slate-400 hover:bg-slate-100'
+                              }`}
+                              title={reorderMode ? (lang === 'TH' ? 'ย้ายแถวขึ้น' : 'Move row up') : t.reorderLocked}
                             >
                               <ArrowUp className="h-4 w-4" />
                             </button>
 
-                            {/* Move Down */}
+                            {/* Move Down — only usable in the reorder mode */}
                             <button
                               onClick={() => handleMoveRow(originalIndex, 1)}
-                              disabled={originalIndex === entries.length - 1 || !!searchTerm}
-                              className="text-slate-400 hover:text-slate-700 disabled:opacity-20 p-1 hover:bg-slate-100 rounded-lg transition"
-                              title="Move row down"
+                              disabled={!reorderMode || originalIndex === entries.length - 1 || !!searchTerm}
+                              className={`p-1 rounded-lg transition disabled:opacity-20 ${
+                                reorderMode
+                                  ? 'text-amber-600 hover:text-amber-800 hover:bg-amber-50'
+                                  : 'text-slate-400 hover:bg-slate-100'
+                              }`}
+                              title={reorderMode ? (lang === 'TH' ? 'ย้ายแถวลง' : 'Move row down') : t.reorderLocked}
                             >
                               <ArrowDown className="h-4 w-4" />
                             </button>
@@ -1124,8 +1466,9 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
                             {/* Delete */}
                             <button
                               onClick={() => setRowToDelete(entry.id)}
-                              className="text-rose-500 hover:text-rose-700 p-1 hover:bg-rose-50 rounded-lg transition"
-                              title="Delete row"
+                              disabled={reorderMode}
+                              className="text-rose-500 hover:text-rose-700 p-1 hover:bg-rose-50 rounded-lg transition disabled:opacity-20"
+                              title={lang === 'TH' ? 'ลบแถว' : 'Delete row'}
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -1146,14 +1489,14 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
             
             {/* Grand Total box */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col justify-center">
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+              <span className="text-[12px] font-extrabold text-slate-400 uppercase tracking-widest">
                 {t.totalLabel}
               </span>
               <div className="flex flex-wrap items-baseline gap-x-4 mt-2">
                 <span className="text-xl font-black text-slate-900">
                   ฿{subtotalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className="text-[10px] font-bold text-slate-500">
+                <span className="text-[12px] font-bold text-slate-500">
                   (ก่อนภาษี: ฿{subtotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} • ภาษี: ฿{subtotalTax.toLocaleString(undefined, { minimumFractionDigits: 2 })})
                 </span>
               </div>
@@ -1161,14 +1504,14 @@ export default function BudgetGrid({ user, lang, periodInfo, onBack, onNavigate 
 
             {/* Deducted Total box */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col justify-center">
-              <span className="text-[10px] font-extrabold text-[var(--color-primary)] uppercase tracking-widest">
+              <span className="text-[12px] font-extrabold text-[var(--color-primary)] uppercase tracking-widest">
                 {t.deductLabel}
               </span>
               <div className="flex flex-wrap items-baseline gap-x-4 mt-2">
                 <span className="text-xl font-black text-[var(--color-primary)]">
                   ฿{subtotalDeductTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className="text-[10px] font-bold text-slate-500">
+                <span className="text-[12px] font-bold text-slate-500">
                   (ก่อนภาษี: ฿{subtotalDeductAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} • ภาษี: ฿{subtotalDeductTax.toLocaleString(undefined, { minimumFractionDigits: 2 })})
                 </span>
               </div>
@@ -1460,7 +1803,7 @@ function ManageDepartmentsModal({ departments, lang, onClose, onReload }) {
                   <span className="flex-1 text-sm font-bold text-slate-800 truncate" title={d.dept_name}>
                     {d.dept_name}
                     {!d.is_active && (
-                      <span className="ml-2 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                      <span className="ml-2 text-[11px] font-black text-slate-400 uppercase tracking-wider">
                         {lang === 'TH' ? '(ระงับ)' : '(suspended)'}
                       </span>
                     )}
@@ -1666,7 +2009,7 @@ function CostCenterDropdown({
         disabled={isReadOnly}
         className="w-full text-left bg-transparent hover:bg-slate-100 px-2 py-2 leading-normal rounded border border-transparent focus:border-slate-200 flex items-start gap-2 group disabled:hover:bg-transparent cursor-pointer disabled:cursor-default break-words"
       >
-        <span className="text-slate-800 font-bold text-xs flex-1 break-words">
+        <span className="text-slate-800 font-bold text-sm flex-1 break-words">
           {entry.cc_code === '-' ? '-' : entry.cc_code || (lang === 'TH' ? 'เลือกศูนย์ต้นทุน...' : 'Select...')}
         </span>
         {!isReadOnly && <ChevronDown className="h-3.5 w-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition shrink-0 mt-0.5" />}
@@ -1699,7 +2042,7 @@ function CostCenterDropdown({
                   handleNewCCSubmit();
                 }
               }}
-              className="w-full bg-slate-50 border border-slate-200 text-xs rounded-lg pl-8 pr-3 py-1.5 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary-light)]"
+              className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg pl-8 pr-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary-light)]"
               placeholder={lang === 'TH' ? 'ค้นหาหรือพิมพ์รหัสใหม่...' : 'Search or type code...'}
               autoFocus
             />
@@ -1712,7 +2055,7 @@ function CostCenterDropdown({
                 key={cc.id}
                 onClick={() => handleSelect(cc.id)}
                 type="button"
-                className="w-full text-left px-3 py-2.5 text-[13px] text-slate-700 hover:bg-slate-50 hover:text-[var(--color-primary)] rounded flex items-start gap-2 cursor-pointer font-semibold break-words leading-normal"
+                className="w-full text-left px-3 py-2.5 text-[14px] text-slate-700 hover:bg-slate-50 hover:text-[var(--color-primary)] rounded flex items-start gap-2 cursor-pointer font-semibold break-words leading-normal"
               >
                 <span className="flex-1 break-words">{cc.cc_code} {cc.cc_name && `- ${cc.cc_name}`}</span>
                 {entry.cost_center_id === cc.id && <Check className="h-3.5 w-3.5 text-[var(--color-primary)] shrink-0 mt-0.5" />}

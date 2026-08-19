@@ -51,10 +51,34 @@ async function bootstrap() {
     }
   }
 
-  // Start the hidden local server (port 0 = OS picks a free port).
+  // Start the hidden local server on a STABLE port.
+  //
+  // The window is a normal web page served from http://127.0.0.1:<port>, and
+  // the browser keys localStorage by that whole origin — port included. With a
+  // random port (the old `port: 0`) every launch got a brand new, empty store,
+  // so the chosen theme, the language, the "don't show the welcome screen
+  // again" flag and the sheet's autofill memory were all silently forgotten
+  // between sessions. Keeping the port fixed keeps those settings.
+  //
+  // The fallbacks exist only for the rare case where another program already
+  // holds the port; settings then live under that port instead.
   try {
     const { startServer } = require('../backend/app');
-    serverInfo = await startServer({ distDir, port: 0 });
+    const candidatePorts = [43117, 43118, 43119, 0];
+    let lastErr = null;
+
+    for (const candidate of candidatePorts) {
+      try {
+        serverInfo = await startServer({ distDir, port: candidate });
+        break;
+      } catch (err) {
+        lastErr = err;
+        // Only a busy port is worth retrying; anything else is a real failure.
+        if (err && err.code !== 'EADDRINUSE') throw err;
+      }
+    }
+
+    if (!serverInfo) throw lastErr || new Error('No free port available');
   } catch (err) {
     dialog.showErrorBox(
       'BudgetHub — Server failed to start',

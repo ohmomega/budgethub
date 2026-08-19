@@ -459,7 +459,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
             <span className="text-sm font-bold text-slate-800 uppercase bg-slate-200/50 px-3 py-1 rounded-xl">
               {period.month < 10 ? `0${period.month}` : period.month}/{period.year} - {getPeriodLabel(period)}
             </span>
-            <span className={`px-2 py-0.5 text-[10px] font-black rounded-md tracking-wider ${
+            <span className={`px-2 py-0.5 text-[12px] font-black rounded-md tracking-wider ${
               period.status === 'open' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
             }`}>
               {period.status === 'open' ? 'DRAFT' : 'FINALIZED'}
@@ -515,7 +515,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className="font-extrabold text-slate-800 text-base">{comparisonTitle}</h3>
-                <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 block">
+                <span className="text-[13px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 block">
                   {scopeSubtitle}
                 </span>
               </div>
@@ -533,19 +533,19 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                 <div className="bg-slate-100 p-0.5 rounded-lg flex items-center">
                   <button
                     onClick={() => setScopeMode('year')}
-                    className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md transition cursor-pointer ${scopeMode === 'year' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-2.5 py-1.5 text-[12px] font-bold rounded-md transition cursor-pointer ${scopeMode === 'year' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     {t.scopeWhole}
                   </button>
                   <button
                     onClick={() => setScopeMode('month')}
-                    className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md transition cursor-pointer ${scopeMode === 'month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-2.5 py-1.5 text-[12px] font-bold rounded-md transition cursor-pointer ${scopeMode === 'month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     {t.scopeThisMonth}
                   </button>
                   <button
                     onClick={() => setScopeMode('custom')}
-                    className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md transition cursor-pointer ${scopeMode === 'custom' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-2.5 py-1.5 text-[12px] font-bold rounded-md transition cursor-pointer ${scopeMode === 'custom' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     {t.scopeCustom}
                   </button>
@@ -563,7 +563,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                     <button
                       key={m}
                       onClick={() => toggleScopeMonth(m)}
-                      className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+                      className={`px-2.5 py-1 text-[12px] font-bold rounded-lg border transition cursor-pointer ${
                         active
                           ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
                           : 'bg-white text-slate-500 border-slate-200 hover:border-[var(--color-primary-light)]'
@@ -597,7 +597,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                   return (
                     <div key={idx} className="h-full flex flex-col items-center group flex-1 min-w-0 relative">
                       {/* Tooltip on Hover (net total + budget cut) */}
-                      <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 shadow pointer-events-none whitespace-nowrap space-y-1 z-10">
+                      <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[12px] font-bold py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 shadow pointer-events-none whitespace-nowrap space-y-1 z-10">
                         <div className="flex items-center gap-1.5">
                           <span className="h-2 w-2 rounded-full inline-block bg-[var(--color-primary)]" />
                           <span>{t.statTotal}: ฿{netVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -621,7 +621,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                       </div>
 
                       {/* X-axis Label */}
-                      <span className="text-[10px] font-bold text-slate-400 mt-2 block truncate">
+                      <span className="text-[12px] font-bold text-slate-400 mt-2 block truncate">
                         {label}
                       </span>
                     </div>
@@ -650,7 +650,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
             <div>
               <h3 className="font-extrabold text-slate-800 text-base">{t.ccBreakdown}</h3>
-              <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 block">
+              <span className="text-[13px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 block">
                 {scopeSubtitle}
               </span>
             </div>
@@ -731,7 +731,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                       {label}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-0.5 text-[9px] font-black rounded-md tracking-wider ${
+                      <span className={`px-2 py-0.5 text-[11px] font-black rounded-md tracking-wider ${
                         sheet.status === 'open' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
                       }`}>
                         {sheet.status === 'open' ? 'DRAFT' : 'FINALIZED'}
@@ -860,7 +860,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                   {/* Totals summary */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      <span className="text-[13px] font-bold text-slate-400 uppercase tracking-wider block">
                         {t.reportYearTotal} ({lang === 'TH' ? reportYear + 543 : reportYear})
                       </span>
                       <span className="text-2xl font-black text-slate-900 mt-1 block tracking-tight">
@@ -868,7 +868,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                       </span>
                     </div>
                     <div className="bg-[var(--color-primary-bg-light)] border border-slate-200 rounded-2xl p-4">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      <span className="text-[13px] font-bold text-slate-400 uppercase tracking-wider block">
                         {t.reportMonthTotal}
                         {selected ? ` — ${MONTH_NAMES[lang][selected.month - 1]}` : ''}
                       </span>
@@ -878,7 +878,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                           : '—'}
                       </span>
                       {selected && (
-                        <span className="text-[11px] font-bold text-pink-600 mt-1 block">
+                        <span className="text-[13px] font-bold text-pink-600 mt-1 block">
                           {t.statBudgetCut}: ฿{(selected.budgetCutTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </span>
                       )}
@@ -900,7 +900,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                               onClick={() => setActiveReportMonth(m.month)}
                               className={`h-full flex flex-col justify-end items-center group flex-1 relative cursor-pointer rounded-lg transition ${isActive ? 'bg-slate-100/70' : ''}`}
                             >
-                              <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 shadow pointer-events-none whitespace-nowrap z-10 space-y-1">
+                              <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[12px] font-bold py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 shadow pointer-events-none whitespace-nowrap z-10 space-y-1">
                                 <div className="flex items-center gap-1.5">
                                   <span className="h-2 w-2 rounded-full inline-block bg-[var(--color-primary)]" />
                                   <span>{t.statTotal}: ฿{m.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -920,7 +920,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                                   className="w-2.5 sm:w-3 bg-gradient-to-t from-rose-400 to-pink-500 rounded-t-md shadow-sm transition-all duration-300"
                                 />
                               </div>
-                              <span className={`text-[9px] font-bold mt-2 block ${isActive ? 'text-[var(--color-primary)]' : 'text-slate-400'}`}>
+                              <span className={`text-[11px] font-bold mt-2 block ${isActive ? 'text-[var(--color-primary)]' : 'text-slate-400'}`}>
                                 {MONTH_NAMES[lang][m.month - 1].substring(0, 3)}
                               </span>
                             </button>
@@ -947,7 +947,7 @@ export default function Dashboard({ user, lang, onOpenSheet }) {
                   )}
 
                   {hasData && (
-                    <p className="text-[11px] text-slate-400 font-semibold text-center">
+                    <p className="text-[13px] text-slate-400 font-semibold text-center">
                       {t.reportSelectMonthHint}
                     </p>
                   )}

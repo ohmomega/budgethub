@@ -220,7 +220,7 @@ export default function DepartmentsList({ user, lang }) {
                       <button
                         onClick={() => handleToggleActive(d)}
                         disabled={user.role !== 'admin'}
-                        className={`px-2.5 py-1 text-[10px] font-black rounded-md tracking-wider ${
+                        className={`px-2.5 py-1 text-[12px] font-black rounded-md tracking-wider ${
                           d.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                         } ${user.role === 'admin' ? 'cursor-pointer' : 'cursor-default'}`}
                       >

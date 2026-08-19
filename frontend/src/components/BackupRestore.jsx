@@ -167,7 +167,7 @@ export default function BackupRestore({ lang }) {
             {exporting ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <Download className="h-4.5 w-4.5" />}
             <span>{t.exportBtn}</span>
           </button>
-          <p className="text-[11px] text-slate-400 font-semibold text-center">{t.exportHint}</p>
+          <p className="text-[13px] text-slate-400 font-semibold text-center">{t.exportHint}</p>
         </div>
 
         {/* Restore */}

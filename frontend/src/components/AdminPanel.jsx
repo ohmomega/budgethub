@@ -514,7 +514,7 @@ export default function AdminPanel() {
                           {log.full_name} ({log.username})
                         </td>
                         <td className="px-5 py-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${log.action_type === 'create' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/40' :
+                          <span className={`px-2 py-0.5 rounded text-[12px] font-bold uppercase ${log.action_type === 'create' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/40' :
                               log.action_type === 'delete' ? 'bg-red-950 text-red-300 border border-red-800/40' :
                                 'bg-purple-950 text-purple-300 border border-purple-800/40'
                             }`}>

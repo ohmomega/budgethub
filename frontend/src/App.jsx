@@ -341,14 +341,14 @@ export default function App() {
             <div className="bg-slate-100 p-0.5 rounded-lg flex items-center">
               <button
                 onClick={() => setLang('EN')}
-                className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition ${lang === 'EN' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                className={`px-2.5 py-1 text-[12px] font-bold rounded-md transition ${lang === 'EN' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                   }`}
               >
                 EN
               </button>
               <button
                 onClick={() => setLang('TH')}
-                className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition ${lang === 'TH' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                className={`px-2.5 py-1 text-[12px] font-bold rounded-md transition ${lang === 'TH' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                   }`}
               >
                 ไทย
@@ -389,21 +389,21 @@ export default function App() {
             <div className="bg-slate-100 p-0.5 rounded-xl flex items-center w-full justify-between">
               <button
                 onClick={() => setThemeMode('light')}
-                className={`flex-1 py-1.5 text-[10px] font-extrabold rounded-lg transition text-center cursor-pointer ${themeMode === 'light' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                className={`flex-1 py-1.5 text-[12px] font-extrabold rounded-lg transition text-center cursor-pointer ${themeMode === 'light' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                   }`}
               >
                 {lang === 'TH' ? 'สว่าง' : 'Light'}
               </button>
               <button
                 onClick={() => setThemeMode('dark')}
-                className={`flex-1 py-1.5 text-[10px] font-extrabold rounded-lg transition text-center cursor-pointer ${themeMode === 'dark' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                className={`flex-1 py-1.5 text-[12px] font-extrabold rounded-lg transition text-center cursor-pointer ${themeMode === 'dark' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                   }`}
               >
                 {lang === 'TH' ? 'มืด' : 'Dark'}
               </button>
               <button
                 onClick={() => setThemeMode('soft')}
-                className={`flex-1 py-1.5 text-[10px] font-extrabold rounded-lg transition text-center cursor-pointer ${themeMode === 'soft' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                className={`flex-1 py-1.5 text-[12px] font-extrabold rounded-lg transition text-center cursor-pointer ${themeMode === 'soft' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                   }`}
               >
                 {lang === 'TH' ? 'นุ่มนวล' : 'Soft'}
@@ -421,7 +421,7 @@ export default function App() {
                 <div className="text-xs font-bold text-slate-800 truncate" title={user.full_name}>
                   {user.full_name}
                 </div>
-                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide truncate">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide truncate">
                   {user.role} {user.department_code ? `(${user.department_code})` : ''}
                 </div>
               </div>
@@ -431,7 +431,7 @@ export default function App() {
           </div>
 
           {/* Educational-use disclaimer + build version */}
-          <p className="text-[9px] leading-snug text-slate-400 font-semibold text-center pt-1 border-t border-slate-100">
+          <p className="text-[11px] leading-snug text-slate-400 font-semibold text-center pt-1 border-t border-slate-100">
             {t.eduOnly}
             <span className="block mt-1 text-slate-300 tracking-wide">
               BudgetHub v{__APP_VERSION__}
@@ -520,13 +520,13 @@ export default function App() {
                     : <Circle className="h-6 w-6 text-slate-300 shrink-0" />}
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                      <span className="text-[10px] font-black text-slate-400">{i + 1}</span>
+                      <span className="text-[12px] font-black text-slate-400">{i + 1}</span>
                       {s.title}
                     </div>
-                    <div className="text-[11px] text-slate-500 font-medium">{s.desc}</div>
+                    <div className="text-[13px] text-slate-500 font-medium">{s.desc}</div>
                   </div>
                   {s.done ? (
-                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wide shrink-0">{t.doneLabel}</span>
+                    <span className="text-[12px] font-black text-emerald-600 uppercase tracking-wide shrink-0">{t.doneLabel}</span>
                   ) : (
                     <button
                       onClick={() => goSetup(s.tab)}

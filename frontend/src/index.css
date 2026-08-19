@@ -22,8 +22,18 @@
     --color-primary-bg-light: #f0fdfa; /* teal-50 */
   }
 
+  /* Base type size for the whole app. Everything in the UI is sized in rem, so
+     this one value scales the entire interface. 17px reads noticeably more
+     comfortably than the browser default 16px on a work-day-long screen. */
+  html {
+    font-size: 17px;
+  }
+
   body {
-    font-family: 'Outfit', 'Sarabun', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    /* 'Leelawadee UI' / 'Noto Sans Thai' come before the generic fallbacks so
+       Thai text stays crisp even when the app runs offline and the webfonts
+       above cannot be fetched. */
+    font-family: 'Outfit', 'Sarabun', 'Leelawadee UI', 'Noto Sans Thai', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     background-color: var(--color-bg-base);
     color: var(--color-text-main);
     min-height: 100vh;
@@ -31,6 +41,21 @@
     flex-direction: column;
     overflow-x: hidden;
     margin: 0;
+    /* Sharper glyph edges + roomier lines: Thai has tall vowels/tone marks that
+       need the extra leading to stay legible. */
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Form controls default to the browser font, which looks noticeably smaller
+     and blurrier next to the rest of the UI — keep them on the app font. */
+  input,
+  select,
+  textarea,
+  button {
+    font-family: inherit;
   }
 }
 
@@ -211,9 +236,10 @@
 .grid-cell {
   border-right: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.6rem;
   vertical-align: middle;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
 }
 
 .grid-header {
@@ -221,11 +247,46 @@
   border-right: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text-muted);
-  font-weight: 700;
-  font-size: 0.75rem;
+  font-weight: 800;
+  font-size: 0.8125rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.5rem 0.75rem;
+  letter-spacing: 0.03em;
+  padding: 0.6rem 0.6rem;
   text-align: center;
   user-select: none;
+}
+
+/* Autofill suggestion chip — the "repeat what I just typed" helper shown under
+   a cell. Rendered in a portal, so it needs its own colours and z-index. */
+.autofill-chip {
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-primary);
+  background-color: var(--color-primary);
+  color: #ffffff;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  box-shadow: 0 10px 20px -8px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+  text-align: left;
+  animation: autofill-pop 0.12s ease-out;
+}
+
+.autofill-chip:hover {
+  background-color: var(--color-primary-hover);
+}
+
+@keyframes autofill-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

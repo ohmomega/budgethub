@@ -20,7 +20,10 @@ import {
   MousePointerClick,
   DatabaseBackup,
   ShieldCheck,
-  RotateCcw
+  RotateCcw,
+  History,
+  ArrowUpDown,
+  GripVertical
 } from 'lucide-react';
 
 // A self-contained, always-available user guide. Written so a first-time,
@@ -70,10 +73,23 @@ const L = {
       'เลือกศูนย์ต้นทุนจากช่อง "รหัสศูนย์ต้นทุน" — พิมพ์เพื่อค้นหา หรือกด "เพิ่มศูนย์ต้นทุนใหม่" เพื่อสร้างทันที',
       'ภาษี 7% และราคารวม ระบบคำนวณให้อัตโนมัติ',
       'ติ๊กช่อง "ตัดงบทำการ" หากต้องการให้รายการนั้นถูกนับในยอดตัดงบ',
-      'จัดลำดับแถวได้ด้วยการลากแถว หรือกดลูกศรขึ้น/ลง และลบแถวด้วยไอคอนถังขยะ',
+      'ต้องการย้ายลำดับแถว ให้กดปุ่ม "แก้ไขลำดับ" ที่อยู่ข้าง ๆ ปุ่ม "เพิ่มแถว" ก่อน แล้วจึงลากแถวขึ้น-ลง หรือกดลูกศร ▲ ▼ ในคอลัมน์ "การจัดการ" เพื่อย้ายทีละแถว',
+      'จัดลำดับเสร็จแล้วกด "เสร็จสิ้น" เพื่อกลับมากรอกข้อมูลตามปกติ (ระหว่างอยู่ในโหมดแก้ไขลำดับ ช่องกรอกข้อมูลจะถูกล็อกชั่วคราว เพื่อกันการแก้ไขโดยไม่ตั้งใจขณะลากแถว)',
+      'ลบแถวด้วยไอคอนถังขยะ และแทรกแถวใหม่ใต้แถวเดิมด้วยไอคอน ＋ ในคอลัมน์ "การจัดการ"',
       'เมื่อกด "ยืนยันแผ่นงาน" แผ่นงานจะถูกล็อก หากต้องการแก้ไขอีกครั้งให้กดปุ่ม "ยกเลิกการยืนยัน"',
     ],
     gridTip: 'ตารางถูกปรับให้พอดีหน้าจอแล้ว ไม่ต้องเลื่อนซ้าย-ขวา — กด Enter เพื่อยืนยันแต่ละช่องได้รวดเร็ว',
+    autofillTitle: 'ระบบเติมข้อความล่าสุดอัตโนมัติ (Autofill)',
+    autofillIntro: 'เวลากรอกหลาย ๆ แถวติดกัน มักต้องพิมพ์ค่าเดิมซ้ำ ๆ ระบบจึงจำ "ค่าล่าสุดที่พิมพ์" ไว้ให้ช่องละ 1 ค่า แล้วเสนอให้เติมในแถวถัดไปได้ทันที',
+    autofillSteps: [
+      'ระบบจะจำค่าล่าสุดของ 4 ช่องนี้ คือ รหัสบัญชี, รายการ, จำนวนเงิน และเหตุผล (จำเฉพาะค่าล่าสุดค่าเดียว ไม่เก็บย้อนหลังเป็นรายการยาว)',
+      'เมื่อคลิกช่องเดิมของแถวใหม่ที่ยังว่างอยู่ จะมีป้ายสีเขียวขึ้นมาใต้ช่องนั้น พร้อมข้อความที่พิมพ์ไว้ล่าสุด',
+      'กดปุ่ม Tab หรือคลิกที่ป้าย เพื่อเติมข้อความนั้นลงในช่องทันที (ระบบบันทึกให้เองอัตโนมัติ)',
+      'ถ้าไม่ต้องการใช้ ก็พิมพ์ต่อได้เลย หรือกด Esc เพื่อซ่อนป้ายนั้น',
+      'ถ้าพิมพ์ไปบางส่วนแล้วตรงกับค่าล่าสุด ป้ายจะยังขึ้นให้เติมส่วนที่เหลือได้เช่นกัน',
+      'ทุกครั้งที่พิมพ์ค่าใหม่ ระบบจะแทนที่ค่าที่จำไว้เดิมด้วยค่าล่าสุดเสมอ',
+    ],
+    autofillTip: 'ระบบจะจำค่าล่าสุดไว้ในเครื่องของคุณเท่านั้น ใช้ข้ามแผ่นงบประมาณและข้ามแผนกได้ และไม่มีผลกับข้อมูลที่บันทึกไว้แล้ว',
     dashboardSteps: [
       'หน้า "แผงควบคุม" แสดงยอดรวมสุทธิและยอดตัดงบของงวดล่าสุด พร้อมกราฟเปรียบเทียบ',
       'เลือกช่วงเวลาของกราฟได้ที่ปุ่ม "ทั้งปี" (ค่าเริ่มต้น) / "เดือนนี้" / "กำหนดเอง" — ถ้าเลือก "กำหนดเอง" จะเลือกได้หลายเดือนแบบไม่ต่อเนื่อง เช่น ก.พ., มิ.ย., ส.ค.',
@@ -94,6 +110,9 @@ const L = {
     faq: [
       { q: 'กดปุ่ม "เพิ่มแถว" แล้วไม่มีอะไรเกิดขึ้น?', a: 'เป็นเพราะยังไม่มีแผนกในแผ่นงานนี้ ให้พิมพ์ชื่อแผนกในช่องที่ปรากฏแล้วกดเพิ่ม จากนั้นจึงกรอกรายการได้' },
       { q: 'ยืนยันแผ่นงานไปแล้ว แก้ไขได้ไหม?', a: 'ได้ กดปุ่ม "ยกเลิกการยืนยัน" ที่มุมขวาบนของแผ่นงาน แผ่นงานจะกลับมาเป็นแบบร่างและแก้ไขได้อีกครั้ง' },
+      { q: 'ลากแถวไม่ได้ หรือกดลูกศรขึ้น/ลงแล้วไม่ขยับ?', a: 'ต้องกดปุ่ม "แก้ไขลำดับ" ที่อยู่ข้าง ๆ ปุ่ม "เพิ่มแถว" ก่อน ปุ่มจะเปลี่ยนเป็นสีส้มและมีคำอธิบายขึ้นเหนือตาราง จากนั้นจึงลากแถวหรือกดลูกศรได้ เมื่อเสร็จแล้วกด "เสร็จสิ้น" (ถ้ากำลังค้นหาอยู่ ระบบจะล้างคำค้นหาให้ก่อน เพราะการย้ายแถวต้องเห็นลำดับจริงทั้งหมด)' },
+      { q: 'ป้ายสีเขียวที่ขึ้นใต้ช่องคืออะไร?', a: 'คือระบบเติมข้อความล่าสุดอัตโนมัติ (Autofill) ที่จำค่าล่าสุดที่คุณพิมพ์ในช่อง รหัสบัญชี, รายการ, จำนวนเงิน และเหตุผล ไว้ช่องละ 1 ค่า กด Tab หรือคลิกที่ป้ายเพื่อเติมค่านั้น หรือกด Esc เพื่อซ่อน' },
+      { q: 'ไม่อยากให้ป้ายแนะนำขึ้นมา ต้องทำอย่างไร?', a: 'ป้ายจะขึ้นเฉพาะตอนที่คลิกเข้าไปในช่องที่ยังว่างอยู่เท่านั้น ถ้าไม่ต้องการใช้ ก็พิมพ์ข้อมูลต่อได้เลย ป้ายจะหายไปเอง หรือกด Esc เพื่อซ่อนทันที' },
       { q: 'แก้ไขรหัสศูนย์ต้นทุนได้ไหม?', a: 'ได้ กดไอคอนดินสอที่ศูนย์ต้นทุนนั้น แล้วแก้รหัสได้เลย (ต้องไม่ซ้ำกับรหัสอื่น)' },
       { q: 'ส่งออกหลายเดือนพร้อมกันได้ไหม?', a: 'ได้ ที่หน้า "แผ่นงบประมาณ" ติ๊กเลือกได้หลายเดือน แล้วกด "ส่งออกที่เลือกเป็น Excel" จะได้ไฟล์เดียวที่มีหน้าสรุปรวม ตามด้วยรายละเอียดของแต่ละเดือนที่เลือก' },
       { q: 'ไฟล์สำรองข้อมูลอัตโนมัติเก็บไว้ที่ไหน?', a: 'อยู่ในโฟลเดอร์ข้อมูลของโปรแกรมเอง (สร้างให้อัตโนมัติ ไม่ต้องเข้าไปยุ่ง) ถ้าต้องการไฟล์สำรองที่เลือกตำแหน่งเก็บเองได้ ให้ใช้ปุ่ม "ดาวน์โหลดไฟล์สำรองข้อมูล" ที่หน้า "สำรอง & กู้คืนข้อมูล" แทน ไฟล์จะไปอยู่ในโฟลเดอร์ดาวน์โหลด (Downloads)' },
@@ -145,10 +164,23 @@ const L = {
       'Pick a cost center in the "Cost Center" cell — type to search, or press "Add new cost center" to create one instantly.',
       'VAT (7%) and the total are calculated automatically.',
       'Tick "Deduct Budget" to include a row in the deducted total.',
-      'Reorder rows by dragging them or using the up/down arrows; delete a row with the trash icon.',
+      'To move a row, first click "Reorder rows" (next to the "Add Row" button), then drag the row up or down, or use the ▲ ▼ arrows in the "Actions" column to move it one step at a time.',
+      'Click "Done" when the order is right to go back to normal editing. (While reordering, the cells are locked so nothing gets edited by accident mid-drag.)',
+      'Delete a row with the trash icon, or insert a new row underneath one with the ＋ icon in the "Actions" column.',
       'After "Finalize Sheet" the sheet is locked — to edit it again, click "Reopen".',
     ],
     gridTip: 'The table now fits your screen — no left/right scrolling. Press Enter to confirm each cell quickly.',
+    autofillTitle: 'Autofill — repeat what you just typed',
+    autofillIntro: 'Entering several rows in a row usually means retyping the same values. The sheet remembers the value you typed most recently in each cell and offers it on the next row.',
+    autofillSteps: [
+      'Four cells are remembered: account code, item, amount and reason — only the single most recent value each, not a long history.',
+      'Click the same cell on a new, still-empty row and a green chip appears underneath it with the value you last typed.',
+      'Press Tab or click the chip to fill it in — it saves automatically.',
+      'Don\'t want it? Just keep typing, or press Esc to hide the chip.',
+      'If what you have typed so far is the start of the remembered value, the chip still offers to complete it.',
+      'Every new value you type replaces the remembered one, so the chip always offers the latest.',
+    ],
+    autofillTip: 'The remembered values are stored on your own computer only. They carry across sheets and departments, and never change data you have already saved.',
     dashboardSteps: [
       'The "Dashboard" shows the latest period’s net and deducted totals plus a comparison chart.',
       'Pick the chart\'s time range with "Whole Year" (default) / "This Month" / "Custom" — Custom lets you pick any set of months, e.g. Feb, Jun, Aug.',
@@ -169,6 +201,9 @@ const L = {
     faq: [
       { q: 'I clicked "Add Row" and nothing happened?', a: 'There are no departments in this sheet yet. Type a department name in the box shown and add it, then you can enter rows.' },
       { q: 'I finalized a sheet — can I still edit it?', a: 'Yes. Click "Reopen" at the top right of the sheet; it returns to draft and becomes editable again.' },
+      { q: 'I can\'t drag a row, and the up/down arrows do nothing?', a: 'Click "Reorder rows" first (next to the "Add Row" button). It turns amber and a note appears above the table; then you can drag rows or use the arrows. Click "Done" when you\'re finished. (Any active search is cleared first, because moving a row needs the full, real order to be visible.)' },
+      { q: 'What is the green chip that appears under a cell?', a: 'That is Autofill. The sheet remembers the value you typed most recently in the account code, item, amount and reason cells — one value each — and offers it there. Press Tab or click the chip to fill it in, or press Esc to hide it.' },
+      { q: 'How do I stop the suggestion chip from appearing?', a: 'It only appears when you click into a cell that is still empty. If you don\'t want it, just keep typing and it disappears — or press Esc to hide it right away.' },
       { q: 'Can I edit a cost center code?', a: 'Yes. Click the pencil icon on that cost center and change the code (it must not duplicate another one).' },
       { q: 'Can I export several months at once?', a: 'Yes. On the "Budget Sheets" page, tick several months and click "Export Selected (Excel)" — you get one file with a summary page followed by full details for each selected month.' },
       { q: 'Where is the automatic backup stored?', a: "In the app's own data folder (created automatically — you don't need to touch it). If you want a backup file you can choose where to keep, use the \"Download Backup File\" button on the Backup & Restore page instead; that one goes to your Downloads folder." },
@@ -270,7 +305,7 @@ export default function HelpCenter({ lang, onNavigate, onOpenSetup }) {
                 <span className="h-7 w-7 rounded-lg bg-white border border-slate-200 text-[var(--color-primary)] flex items-center justify-center shrink-0">
                   <s.icon className="h-4 w-4" />
                 </span>
-                <span className="text-[10px] font-black text-slate-400">{t.stepsLabel} {i + 1}</span>
+                <span className="text-[12px] font-black text-slate-400">{t.stepsLabel} {i + 1}</span>
               </div>
               <p className="text-xs text-slate-600 font-semibold leading-relaxed">{s.txt}</p>
             </button>
@@ -302,15 +337,39 @@ export default function HelpCenter({ lang, onNavigate, onOpenSetup }) {
           {t.gridSteps.map((s, i) => <Step key={i} n={i + 1}>{s}</Step>)}
         </ol>
         {/* Little visual legend of the row controls */}
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-2xl p-3.5">
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-2xl p-3.5">
           <span className="inline-flex items-center gap-1.5"><CornerDownLeft className="h-3.5 w-3.5 text-[var(--color-primary)]" /> Enter</span>
           <span className="inline-flex items-center gap-1.5"><Plus className="h-3.5 w-3.5 text-[var(--color-primary)]" /> {lang === 'TH' ? 'เพิ่ม/แทรกแถว' : 'Add / insert row'}</span>
-          <span className="inline-flex items-center gap-1.5"><ArrowUp className="h-3.5 w-3.5" /><ArrowDown className="h-3.5 w-3.5" /> {lang === 'TH' ? 'ย้ายแถว' : 'Move row'}</span>
-          <span className="inline-flex items-center gap-1.5"><MousePointerClick className="h-3.5 w-3.5" /> {lang === 'TH' ? 'ลากเพื่อจัดลำดับ' : 'Drag to reorder'}</span>
+          <span className="inline-flex items-center gap-1.5"><ArrowUpDown className="h-3.5 w-3.5 text-amber-500" /> {lang === 'TH' ? 'ปุ่ม "แก้ไขลำดับ"' : '"Reorder rows" button'}</span>
+          <span className="inline-flex items-center gap-1.5"><ArrowUp className="h-3.5 w-3.5" /><ArrowDown className="h-3.5 w-3.5" /> {lang === 'TH' ? 'ย้ายแถว (ในโหมดแก้ไขลำดับ)' : 'Move row (in reorder mode)'}</span>
+          <span className="inline-flex items-center gap-1.5"><GripVertical className="h-3.5 w-3.5" /><MousePointerClick className="h-3.5 w-3.5" /> {lang === 'TH' ? 'ลากเพื่อจัดลำดับ' : 'Drag to reorder'}</span>
+          <span className="inline-flex items-center gap-1.5"><History className="h-3.5 w-3.5 text-[var(--color-primary)]" /> {lang === 'TH' ? 'เติมข้อความล่าสุด' : 'Autofill last value'}</span>
           <span className="inline-flex items-center gap-1.5"><CheckSquare className="h-3.5 w-3.5" /> {lang === 'TH' ? 'ตัดงบทำการ' : 'Deduct budget'}</span>
           <span className="inline-flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5 text-rose-500" /> {lang === 'TH' ? 'ลบแถว' : 'Delete row'}</span>
         </div>
         <TipBox label={t.tip}>{t.gridTip}</TipBox>
+      </Section>
+
+      {/* 4b. Autofill (repeat the last typed value) */}
+      <Section icon={History} title={t.autofillTitle} action={goBtn('sheets')}>
+        <p className="text-sm text-slate-500 font-medium mb-4">{t.autofillIntro}</p>
+        <ol className="space-y-2.5">
+          {t.autofillSteps.map((s, i) => <Step key={i} n={i + 1}>{s}</Step>)}
+        </ol>
+
+        {/* What the suggestion chip actually looks like in the sheet */}
+        <div className="mt-4 bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-wrap items-center gap-3">
+          <span className="text-[13px] font-bold text-slate-500">
+            {lang === 'TH' ? 'หน้าตาของป้ายแนะนำ:' : 'The suggestion chip looks like this:'}
+          </span>
+          <span className="autofill-chip" style={{ display: 'inline-flex', cursor: 'default' }}>
+            <History className="h-4 w-4 shrink-0" />
+            <span className="font-black">{lang === 'TH' ? 'ล่าสุด' : 'Last used'}:</span>
+            <span className="font-bold">{lang === 'TH' ? 'ค่าเช่าสำนักงาน' : 'Office rent'}</span>
+            <span className="opacity-70 font-semibold">{lang === 'TH' ? 'กด Tab เพื่อเติม' : 'Press Tab to fill'}</span>
+          </span>
+        </div>
+        <TipBox label={t.tip}>{t.autofillTip}</TipBox>
       </Section>
 
       {/* 5. Dashboard & reports */}
@@ -318,7 +377,7 @@ export default function HelpCenter({ lang, onNavigate, onOpenSetup }) {
         <ol className="space-y-2.5">
           {t.dashboardSteps.map((s, i) => <Step key={i} n={i + 1}>{s}</Step>)}
         </ol>
-        <div className="mt-4 flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+        <div className="mt-4 flex items-center gap-2 text-[13px] font-semibold text-slate-500">
           <Download className="h-3.5 w-3.5 text-[var(--color-primary)]" />
           PDF • Excel • JPG
         </div>

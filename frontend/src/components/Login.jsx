@@ -181,7 +181,7 @@ export default function Login({ onLoginSuccess, lang, setLang, theme }) {
         </div>
 
         {/* Footer info text */}
-        <p className="text-center text-[11px] text-slate-400 mt-6 max-w-[280px] leading-relaxed">
+        <p className="text-center text-[13px] text-slate-400 mt-6 max-w-[280px] leading-relaxed">
           {t.registrationDisabled}
         </p>
 

@@ -281,7 +281,7 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
         <div className="bg-[var(--color-primary-bg-light)] border border-[var(--color-primary-light)] rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <span className="text-sm font-bold text-slate-800">{t.selectedCount(selectedPeriods.length)}</span>
-            <p className="text-[11px] text-slate-500 font-medium mt-0.5">{t.exportSelectedHint}</p>
+            <p className="text-[13px] text-slate-500 font-medium mt-0.5">{t.exportSelectedHint}</p>
           </div>
           <button
             onClick={handleExportSelected}
@@ -348,7 +348,7 @@ export default function BudgetSheetsList({ user, lang, onOpenSheet }) {
                         {getSheetName(p)}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-0.5 text-[9px] font-black rounded-md tracking-wider ${
+                        <span className={`px-2 py-0.5 text-[11px] font-black rounded-md tracking-wider ${
                           p.status === 'open' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
                         }`}>
                           {p.status === 'open' ? 'DRAFT' : 'FINALIZED'}

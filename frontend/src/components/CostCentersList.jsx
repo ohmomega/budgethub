@@ -288,7 +288,7 @@ export default function CostCentersList({ user, lang }) {
                       <button
                         onClick={() => handleToggleActive(cc)}
                         disabled={user.role !== 'admin'}
-                        className={`px-2.5 py-1 text-[10px] font-black rounded-md tracking-wider ${
+                        className={`px-2.5 py-1 text-[12px] font-black rounded-md tracking-wider ${
                           cc.is_active 
                             ? 'bg-emerald-100 text-emerald-700' 
                             : 'bg-slate-100 text-slate-500'
